@@ -1,0 +1,26 @@
+{
+  "name": "steelhearth",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev --filter=@tb/api --filter=@tb/desktop --filter=@tb/worker",
+    "dev:desktop": "pnpm --filter @tb/desktop dev",
+    "dev:api": "pnpm --filter @tb/api dev",
+    "dev:worker": "pnpm --filter @tb/worker dev",
+    "build": "turbo build",
+    "build:contracts": "pnpm --filter @tb/contracts build",
+    "build:core": "pnpm --filter @tb/core build",
+    "build:shared": "pnpm --filter @tb/shared build",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
+    "clean": "turbo clean",
+    "db:generate": "pnpm --filter @tb/database generate",
+    "db:migrate": "pnpm --filter @tb/database migrate"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4",
+    "turbo": "^2.9.17",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@11.5.2"
+}

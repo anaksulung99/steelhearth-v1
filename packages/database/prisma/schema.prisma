@@ -1,0 +1,530 @@
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "linux-musl-arm64-openssl-3.0.x", "rhel-openssl-1.0.x", "debian-openssl-3.0.x", "darwin-arm64", "windows", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x", "debian-openssl-1.1.x"]
+  previewFeatures = ["postgresqlExtensions", "relationJoins"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [pgcrypto]
+}
+
+// =====================================================================
+// ENUMS
+// =====================================================================
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  STOPPED
+  COMPLETED
+  FAILED
+}
+
+enum SessionStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+  TIMEOUT
+}
+
+enum ProxyStatus {
+  UNCHECKED
+  ACTIVE
+  DEAD
+  SLOW
+  BLOCKED
+}
+
+enum ProxyProtocol {
+  HTTP
+  HTTPS
+  SOCKS4
+  SOCKS5
+}
+
+enum ProxyCategory {
+  RESIDENTIAL
+  MOBILE
+  DATACENTER
+  UNKNOWN
+}
+
+enum BehaviourType {
+  DEFAULT_READER
+  MOBILE_CASUAL
+  QUICK_SCANNER
+  DEEP_ENGAGER
+  CUSTOM_CLICKER
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+}
+
+enum OsName {
+  WINDOWS
+  LINUX
+  MACOS
+  ANDROID
+  IOS
+}
+
+enum BrowserName {
+  CHROME
+  FIREFOX
+  SAFARI
+  EDGE
+  CHROME_MOBILE
+  SAFARI_MOBILE
+  FIREFOX_MOBILE
+}
+
+enum BrowserEngine {
+  CHROMIUM
+  FIREFOX
+  WEBKIT
+}
+
+enum LicenseStatus {
+  NOT_ACTIVATED
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  DEVICE_MISMATCH
+  REVOKED
+}
+
+enum WorkerStatus {
+  ONLINE
+  BUSY
+  IDLE
+  OFFLINE
+  ERROR
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+}
+
+enum LogCategory {
+  SYSTEM
+  WORKER
+  SESSION
+  PROXY
+  API
+  SECURITY
+}
+
+// =====================================================================
+// MODELS
+// =====================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("OWNER")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  license             License?
+  campaigns           Campaign[]
+  fingerprintProfiles FingerprintProfile[]
+  proxyGroups         ProxyGroup[]
+  behaviourProfiles   BehaviourProfile[]
+  appSettings         AppSetting[]
+
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------
+// License — 1 license : 1 user : 1 device
+// -----------------------------------------------------------------------
+
+model License {
+  id              String        @id @default(cuid())
+  userId          String        @unique
+  licenseKey      String        @unique
+  deviceId        String?
+  deviceName      String?
+  activatedAt     DateTime?
+  expiresAt       DateTime?
+  lastValidatedAt DateTime?
+  offlineUntil    DateTime?
+  status          LicenseStatus @default(NOT_ACTIVATED)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("licenses")
+}
+
+// -----------------------------------------------------------------------
+// Campaign — core entity
+// -----------------------------------------------------------------------
+
+model Campaign {
+  id                   String         @id @default(cuid())
+  userId               String
+  name                 String
+  targetUrl            String
+  description          String?
+  status               CampaignStatus @default(DRAFT)
+  fingerprintProfileId String?
+  behaviourProfileId   String?
+  totalSessionsTarget  Int            @default(0)
+  dailyLimit           Int            @default(100)
+  sessionsPerHour      Int            @default(10)
+  headless             Boolean        @default(true)
+  browserEngine        BrowserEngine  @default(CHROMIUM)
+  geoMode              String         @default("proxy") // "proxy" | "manual"
+  targetCountries      String[]       @default([])
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprintProfile FingerprintProfile?      @relation(fields: [fingerprintProfileId], references: [id], onDelete: SetNull)
+  behaviourProfile   BehaviourProfile?        @relation(fields: [behaviourProfileId], references: [id], onDelete: SetNull)
+  proxyGroups        CampaignProxyGroup[]
+  schedules          CampaignSchedule[]
+  sessions           BrowserSession[]
+  clickSelectors     CampaignClickSelector[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("campaigns")
+}
+
+// Campaign-level click selectors — merged with BehaviourProfile selectors at runtime.
+// Use order field to control execution sequence relative to profile selectors.
+model CampaignClickSelector {
+  id           String   @id @default(cuid())
+  campaignId   String
+  selector     String
+  selectorType String   @default("css") // "css" | "xpath"
+  description  String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_click_selectors")
+}
+
+model CampaignSchedule {
+  id              String    @id @default(cuid())
+  campaignId      String
+  isActive        Boolean   @default(true)
+  startDate       DateTime?
+  endDate         DateTime?
+  daysOfWeek      Int[]     @default([0, 1, 2, 3, 4, 5, 6]) // 0=Sun, 6=Sat
+  timeWindowStart String? // "HH:mm" e.g. "08:00"
+  timeWindowEnd   String? // "HH:mm" e.g. "22:00"
+  timezone        String    @default("UTC")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_schedules")
+}
+
+// -----------------------------------------------------------------------
+// Fingerprint Profile
+// -----------------------------------------------------------------------
+
+model FingerprintProfile {
+  id                  String      @id @default(cuid())
+  userId              String
+  name                String
+  deviceType          DeviceType  @default(DESKTOP)
+  osName              OsName      @default(WINDOWS)
+  osVersion           String?
+  browserName         BrowserName @default(CHROME)
+  browserVersion      String?
+  userAgent           String?
+  language            String      @default("en-US")
+  languages           String[]    @default(["en-US", "en"])
+  timezone            String      @default("America/New_York")
+  locale              String      @default("en-US")
+  viewportWidth       Int         @default(1280)
+  viewportHeight      Int         @default(720)
+  deviceScaleFactor   Float       @default(1.0)
+  isMobile            Boolean     @default(false)
+  hasTouch            Boolean     @default(false)
+  canvasMode          String      @default("noise") // "noise" | "block" | "off"
+  canvasSeed          Int?
+  webglVendor         String?
+  webglRenderer       String?
+  hardwareConcurrency Int         @default(4)
+  deviceMemory        Int?
+  extraConfig         Json?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+  sessions  BrowserSession[]
+
+  @@index([userId])
+  @@map("fingerprint_profiles")
+}
+
+// -----------------------------------------------------------------------
+// Proxy
+// -----------------------------------------------------------------------
+
+model ProxyGroup {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  proxies   Proxy[]
+  campaigns CampaignProxyGroup[]
+
+  @@index([userId])
+  @@map("proxy_groups")
+}
+
+model Proxy {
+  id            String        @id @default(cuid())
+  proxyGroupId  String
+  protocol      ProxyProtocol @default(HTTP)
+  category      ProxyCategory @default(UNKNOWN)
+  host          String
+  port          Int
+  username      String?
+  password      String?
+  status        ProxyStatus   @default(UNCHECKED)
+  ip            String?
+  country       String?
+  countryCode   String?
+  region        String?
+  city          String?
+  timezone      String?
+  isp           String?
+  asn           String?
+  latency       Int? // ms
+  successCount  Int           @default(0)
+  failCount     Int           @default(0)
+  lastCheckedAt DateTime?
+  lastUsedAt    DateTime?
+  raw           String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  proxyGroup ProxyGroup       @relation(fields: [proxyGroupId], references: [id], onDelete: Cascade)
+  sessions   BrowserSession[]
+
+  @@unique([proxyGroupId, host, port])
+  @@index([proxyGroupId])
+  @@index([status])
+  @@index([country])
+  @@map("proxies")
+}
+
+model CampaignProxyGroup {
+  id           String   @id @default(cuid())
+  campaignId   String
+  proxyGroupId String
+  createdAt    DateTime @default(now())
+
+  campaign   Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  proxyGroup ProxyGroup @relation(fields: [proxyGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, proxyGroupId])
+  @@index([campaignId])
+  @@map("campaign_proxy_groups")
+}
+
+// -----------------------------------------------------------------------
+// Behaviour Profile
+// -----------------------------------------------------------------------
+
+model BehaviourProfile {
+  id                String        @id @default(cuid())
+  userId            String
+  name              String
+  type              BehaviourType @default(DEFAULT_READER)
+  minDwellSeconds   Int           @default(10)
+  maxDwellSeconds   Int           @default(60)
+  minScrollCount    Int           @default(2)
+  maxScrollCount    Int           @default(8)
+  scrollSpeedMin    Int           @default(100) // ms delay between scroll steps
+  scrollSpeedMax    Int           @default(500)
+  enableInternalNav Boolean       @default(false)
+  maxInternalClicks Int           @default(0)
+  extraConfig       Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns            Campaign[]
+  sessions             BrowserSession[]
+  customClickSelectors CustomClickSelector[]
+
+  @@index([userId])
+  @@map("behaviour_profiles")
+}
+
+model CustomClickSelector {
+  id                 String   @id @default(cuid())
+  behaviourProfileId String
+  selector           String
+  selectorType       String   @default("css") // "css" | "xpath"
+  description        String?
+  order              Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  behaviourProfile BehaviourProfile @relation(fields: [behaviourProfileId], references: [id], onDelete: Cascade)
+
+  @@index([behaviourProfileId])
+  @@map("custom_click_selectors")
+}
+
+// -----------------------------------------------------------------------
+// Browser Session
+// -----------------------------------------------------------------------
+
+model BrowserSession {
+  id                   String        @id @default(cuid())
+  campaignId           String
+  fingerprintProfileId String?
+  behaviourProfileId   String?
+  proxyId              String?
+  workerNodeId         String?
+  targetUrl            String
+  finalUrl             String?
+  status               SessionStatus @default(QUEUED)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  durationMs           Int?
+  errorCode            String?
+  errorMessage         String?
+  ip                   String?
+  country              String?
+  countryCode          String?
+  city                 String?
+  userAgent            String?
+  httpStatus           Int?
+  pageTitle            String?
+  retryCount           Int           @default(0)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  campaign           Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  fingerprintProfile FingerprintProfile? @relation(fields: [fingerprintProfileId], references: [id], onDelete: SetNull)
+  behaviourProfile   BehaviourProfile?   @relation(fields: [behaviourProfileId], references: [id], onDelete: SetNull)
+  proxy              Proxy?              @relation(fields: [proxyId], references: [id], onDelete: SetNull)
+  workerNode         WorkerNode?         @relation(fields: [workerNodeId], references: [id], onDelete: SetNull)
+  events             SessionEvent[]
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([proxyId])
+  @@map("browser_sessions")
+}
+
+model SessionEvent {
+  id         String   @id @default(cuid())
+  sessionId  String
+  campaignId String
+  eventType  String // e.g. "session.navigating", "session.behaviour.running"
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  session BrowserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([campaignId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("session_events")
+}
+
+// -----------------------------------------------------------------------
+// Worker Node
+// -----------------------------------------------------------------------
+
+model WorkerNode {
+  id              String       @id @default(cuid())
+  workerId        String       @unique
+  hostname        String?
+  region          String?
+  status          WorkerStatus @default(OFFLINE)
+  activeJobs      Int          @default(0)
+  maxConcurrency  Int          @default(3)
+  lastHeartbeatAt DateTime?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sessions BrowserSession[]
+
+  @@index([status])
+  @@index([lastHeartbeatAt])
+  @@map("worker_nodes")
+}
+
+// -----------------------------------------------------------------------
+// System Log
+// -----------------------------------------------------------------------
+
+model SystemLog {
+  id         String      @id @default(cuid())
+  level      LogLevel    @default(INFO)
+  category   LogCategory @default(SYSTEM)
+  message    String
+  data       Json?
+  sessionId  String?
+  campaignId String?
+  workerId   String?
+  createdAt  DateTime    @default(now())
+
+  @@index([level])
+  @@index([category])
+  @@index([campaignId])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("system_logs")
+}
+
+// -----------------------------------------------------------------------
+// App Settings — per-user key/value store
+// -----------------------------------------------------------------------
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     String
+  isSecret  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@map("app_settings")
+}

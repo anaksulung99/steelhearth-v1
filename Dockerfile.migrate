@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:24-bookworm-slim
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY packages/database/package.json packages/database/package.json
+COPY packages/database/prisma packages/database/prisma
+COPY packages/database/prisma.config.ts packages/database/prisma.config.ts
+COPY packages/database/src packages/database/src
+RUN pnpm install --frozen-lockfile --filter @tb/database...
+
+WORKDIR /app/packages/database
+CMD ["pnpm", "migrate:prod"]

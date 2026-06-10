@@ -1,0 +1,50 @@
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    image: steelhearth-migrate:latest
+    profiles:
+      - tools
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: steelhearth-api:latest
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 3741
+    ports:
+      - "127.0.0.1:3741:3741"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: steelhearth-worker:latest
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:3741
+      WORKER_ID: worker-vps-01
+      MAX_CONCURRENT: 3
+      BROWSER_HEADLESS: "true"
+    depends_on:
+      - api
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
