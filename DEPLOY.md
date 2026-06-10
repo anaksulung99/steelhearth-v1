@@ -39,13 +39,30 @@ docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml --profile tools run --rm migrate
 ```
 
-5. Start services:
+5. Seed the first owner user and default profiles:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile tools run --rm migrate pnpm seed
+```
+
+The seed uses these `.env.production` values:
+
+```env
+SEED_USER_EMAIL=admin@example.com
+SEED_USER_NAME=Admin
+SEED_USER_PASSWORD=change-this-password
+SEED_LICENSE_KEY=ST-PROD-CHANGE-THIS-LICENSE
+```
+
+Run seed once on first deploy. It will not rotate an existing owner license.
+
+6. Start services:
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-6. Check logs:
+7. Check logs:
 
 ```bash
 docker compose -f docker-compose.prod.yml logs -f api

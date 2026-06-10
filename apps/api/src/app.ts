@@ -7,6 +7,12 @@ import { registerRoutes } from "./routes/index.js"
 
 export async function buildApp() {
   const isDev = config.env !== "production"
+  const corsOrigin =
+    config.api.corsOrigin === "false"
+      ? false
+      : config.api.corsOrigin === "*"
+        ? true
+        : config.api.corsOrigin.split(",").map((origin) => origin.trim()).filter(Boolean)
 
   const app = Fastify({
     logger: isDev
@@ -19,7 +25,7 @@ export async function buildApp() {
 
   // CORS — desktop app connects via localhost
   await app.register(cors, {
-    origin: isDev ? true : false,
+    origin: isDev ? true : corsOrigin,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   })
 

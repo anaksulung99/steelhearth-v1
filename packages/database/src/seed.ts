@@ -9,7 +9,7 @@ const seedUserPassword = process.env.SEED_USER_PASSWORD?.trim() || "password";
 // Must match DEFAULT_USER_ID hardcoded in all API route files
 const DEFAULT_USER_ID = "cmq7linvb0000k8vqj3iz8gt0";
 
-export const generateLicenseKey = (): string => {
+export function generateLicenseKey(): string {
   const timestamp = Date.now().toString()
   const randomHex = crypto.randomBytes(16).toString("hex")
 
@@ -18,6 +18,8 @@ export const generateLicenseKey = (): string => {
 
   return formattedKey || rawKey
 }
+
+const seedLicenseKey = process.env.SEED_LICENSE_KEY?.trim() || generateLicenseKey();
 
 async function main() {
   const hashedPassword = await bcrypt.hash(seedUserPassword, 12);
@@ -37,10 +39,10 @@ async function main() {
 
   const license = await prisma.license.upsert({
     where: { userId: user.id },
-    update: { licenseKey: generateLicenseKey() },
+    update: {},
     create: {
       userId: user.id,
-      licenseKey: generateLicenseKey(),
+      licenseKey: seedLicenseKey,
       expiresAt: new Date("2100-01-01T00:00:00Z")
     }
   })

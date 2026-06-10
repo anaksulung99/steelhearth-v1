@@ -20,14 +20,17 @@ FROM deps AS build
 COPY apps/api apps/api
 COPY packages packages
 RUN pnpm --filter @tb/api build
-RUN pnpm deploy --filter @tb/api --prod /prod/api
 
 FROM node:24-bookworm-slim AS runner
 ENV NODE_ENV=production
 ENV API_HOST=0.0.0.0
 ENV API_PORT=3741
 WORKDIR /app
-COPY --from=build /prod/api ./
-COPY --from=build /app/packages/database/prisma ./node_modules/@tb/database/prisma
+COPY --from=build /app/package.json ./
+COPY --from=build /app/pnpm-workspace.yaml ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api ./apps/api
+COPY --from=build /app/packages ./packages
+WORKDIR /app/apps/api
 EXPOSE 3741
 CMD ["node", "dist/server.js"]

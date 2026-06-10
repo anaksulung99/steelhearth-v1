@@ -42,6 +42,7 @@ export const config = {
   api: {
     host: optional("API_HOST", "127.0.0.1"),
     port: parseInt(optional("API_PORT", "3741"), 10),
+    corsOrigin: optional("CORS_ORIGIN", "*"),
   },
 
   db: {
