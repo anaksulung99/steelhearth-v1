@@ -125,7 +125,7 @@ export const useBackgroundMusic = () => {
       volume: isMuted.value ? 0 : volume.value,
       loop: true,
       autoplay: false,
-      html5: false,
+      html5: Boolean(window.electronAPI?.isElectron),
       onload: () => {
         isLoaded.value = true;
         duration.value = sound.value?.duration() || 0;
@@ -134,6 +134,10 @@ export const useBackgroundMusic = () => {
       onloaderror: (id, error) => {
         console.error(`Failed to load audio: ${track.fileName}`, error);
         audioReady.value = false;
+      },
+      onplayerror: (id, error) => {
+        console.error(`Failed to play audio: ${track.fileName}`, error);
+        isPlaying.value = false;
       },
       onplay: () => {
         isPlaying.value = true;

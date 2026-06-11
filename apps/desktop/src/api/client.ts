@@ -22,6 +22,7 @@ class ApiClient {
     path: string,
     opts: { body?: unknown; params?: Record<string, string | number | boolean | undefined> } = {},
   ): Promise<T> {
+    console.log(DEFAULT_BASE_URL)
     const url = new URL(`${this.baseUrl}${path}`)
     if (opts.params) {
       for (const [k, v] of Object.entries(opts.params)) {

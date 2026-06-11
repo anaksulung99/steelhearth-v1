@@ -26,6 +26,21 @@ export const ValidateLicenseSchema = ActivateLicenseSchema
 export type ValidateLicenseDto = z.infer<typeof ValidateLicenseSchema>
 
 // -----------------------------------------------------------------------
+// Reset License Activation
+// -----------------------------------------------------------------------
+
+export const ResetLicenseActivationSchema = z.object({
+  email: z.string().email().optional(),
+  licenseKey: z.string().min(1).max(255).optional(),
+  resetToken: z.string().min(1).max(255),
+}).refine((data) => data.email || data.licenseKey, {
+  message: "email or licenseKey is required",
+  path: ["email"],
+})
+
+export type ResetLicenseActivationDto = z.infer<typeof ResetLicenseActivationSchema>
+
+// -----------------------------------------------------------------------
 // License Response
 // -----------------------------------------------------------------------
 

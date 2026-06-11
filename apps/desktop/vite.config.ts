@@ -91,6 +91,7 @@ export default defineConfig(({ command, mode }) => {
     "img-src 'self' data: blob:",
     "font-src 'self' data: https://fonts.gstatic.com",
     `connect-src 'self' ${[
+      "local:",
       "https://api.iconify.design",
       "https://api.simplesvg.com",
       "https://api.unisvg.com",
@@ -103,6 +104,7 @@ export default defineConfig(({ command, mode }) => {
     ]
       .filter(Boolean)
       .join(" ")}`,
+    "media-src 'self' local: blob: data:",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

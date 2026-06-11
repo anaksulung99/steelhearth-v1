@@ -30,7 +30,9 @@ docs/*
 .dbg/
 .env
 .env.test
+.env.production
 .env.production.example
+env.production
 .eslintrc-auto-import.json
 node_modules
 dist

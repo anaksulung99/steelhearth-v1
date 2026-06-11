@@ -1,5 +1,5 @@
 import { prisma } from "@tb/database"
-import type { ActivateLicenseDto, ValidateLicenseDto } from "@tb/contracts"
+import type { ActivateLicenseDto, ResetLicenseActivationDto, ValidateLicenseDto } from "@tb/contracts"
 import { conflict, forbidden, notFound } from "../helpers/errors.js"
 
 function isExpired(expiresAt: Date | null) {
@@ -108,5 +108,35 @@ export async function validateLicense(dto: ValidateLicenseDto) {
       isActive: user.isActive,
     },
     license: validated,
+  }
+}
+
+export async function resetLicenseActivation(dto: Omit<ResetLicenseActivationDto, "resetToken">) {
+  const where = dto.licenseKey
+    ? { licenseKey: dto.licenseKey }
+    : { user: { email: dto.email! } }
+
+  const license = await prisma.license.findFirst({
+    where,
+    include: { user: { select: { id: true, name: true, email: true, role: true, isActive: true } } },
+  })
+
+  if (!license) throw notFound("License")
+
+  const reset = await prisma.license.update({
+    where: { id: license.id },
+    data: {
+      deviceId: null,
+      deviceName: null,
+      activatedAt: null,
+      lastValidatedAt: null,
+      offlineUntil: null,
+      status: "NOT_ACTIVATED",
+    },
+  })
+
+  return {
+    user: license.user,
+    license: reset,
   }
 }
