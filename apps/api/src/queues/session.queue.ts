@@ -2,10 +2,12 @@ import { Queue } from "bullmq"
 import { buildRedisOpts } from "../helpers/redis.js"
 
 const QUEUE_NAME = "tb-session"
+type LauncherType = "PLAYWRIGHT" | "CRAWLEE"
 
 export interface SessionJobData {
   sessionId: string
   campaignId: string
+  launcherType: LauncherType,
   userId: string
   attempt: number
 }

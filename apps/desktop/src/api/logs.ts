@@ -13,4 +13,8 @@ export const logsApi = {
   }) {
     return apiClient.get<PaginatedResponse<SystemLog>>("/api/logs", params)
   },
+
+  resetAllLogs(adminId: string) {
+    return apiClient.delete(`/api/logs/reset-logs/${adminId}`)
+  },
 }

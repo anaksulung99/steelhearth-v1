@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { behavioursApi, ApiError } from "@/api"
 import type { BehaviourProfile, CreateBehaviourDto, UpdateBehaviourDto } from "@/api"
-import { toast } from "vue-sonner"
+import { toast } from 'vue3-toastify';
 
 export const useBehaviourStore = defineStore("behaviour", () => {
   const items = ref<BehaviourProfile[]>([])

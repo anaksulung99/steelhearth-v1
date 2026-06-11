@@ -12,6 +12,10 @@ datasource db {
 // =====================================================================
 // ENUMS
 // =====================================================================
+enum LauncherType {
+  PLAYWRIGHT
+  CRAWLEE
+}
 
 enum CampaignStatus {
   DRAFT
@@ -180,6 +184,7 @@ model Campaign {
   name                 String
   targetUrl            String
   description          String?
+  launcherType         LauncherType   @default(PLAYWRIGHT)
   status               CampaignStatus @default(DRAFT)
   fingerprintProfileId String?
   behaviourProfileId   String?
@@ -194,8 +199,8 @@ model Campaign {
   updatedAt            DateTime       @updatedAt
 
   user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fingerprintProfile FingerprintProfile?      @relation(fields: [fingerprintProfileId], references: [id], onDelete: SetNull)
-  behaviourProfile   BehaviourProfile?        @relation(fields: [behaviourProfileId], references: [id], onDelete: SetNull)
+  fingerprintProfile FingerprintProfile?     @relation(fields: [fingerprintProfileId], references: [id], onDelete: SetNull)
+  behaviourProfile   BehaviourProfile?       @relation(fields: [behaviourProfileId], references: [id], onDelete: SetNull)
   proxyGroups        CampaignProxyGroup[]
   schedules          CampaignSchedule[]
   sessions           BrowserSession[]
@@ -408,6 +413,7 @@ model CustomClickSelector {
 model BrowserSession {
   id                   String        @id @default(cuid())
   campaignId           String
+  launcherType         LauncherType  @default(PLAYWRIGHT)
   fingerprintProfileId String?
   behaviourProfileId   String?
   proxyId              String?

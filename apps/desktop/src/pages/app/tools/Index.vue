@@ -2,7 +2,7 @@
 import { Icon } from "@iconify/vue";
 import { settingsApi, ApiError } from "@/api";
 import type { AppSetting } from "@/api";
-import { toast } from "vue-sonner";
+import { toast } from "vue3-toastify";
 
 const settings = ref<AppSetting[]>([]);
 const loading = ref(true);

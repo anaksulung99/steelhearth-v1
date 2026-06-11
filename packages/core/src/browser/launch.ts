@@ -9,7 +9,8 @@ import {
 import { FingerprintGenerator } from "fingerprint-generator"
 import { FingerprintInjector } from "fingerprint-injector"
 import type { PlaywrightProxy } from "../proxy/types.js"
-import type { BrowserEngine, DeviceType, OSName, BrowserName } from "../utils/types.js"
+import type { BrowserEngine, DeviceType } from "../utils/types.js"
+
 
 export interface FingerprintHint {
   deviceType?: DeviceType

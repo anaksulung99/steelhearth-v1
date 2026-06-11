@@ -77,24 +77,24 @@ export async function updateCampaign(userId: string, id: string, dto: UpdateCamp
       ...clean(rest),
       ...(proxyGroupIds !== undefined
         ? {
-            proxyGroups: {
-              deleteMany: {},
-              create: proxyGroupIds.map((proxyGroupId) => ({ proxyGroupId })),
-            },
-          }
+          proxyGroups: {
+            deleteMany: {},
+            create: proxyGroupIds.map((proxyGroupId) => ({ proxyGroupId })),
+          },
+        }
         : {}),
       ...(clickSelectors !== undefined
         ? {
-            clickSelectors: {
-              deleteMany: {},
-              create: clickSelectors.map((s) => ({
-                selector: s.selector,
-                selectorType: s.selectorType ?? "css",
-                description: s.description,
-                order: s.order ?? 0,
-              })),
-            },
-          }
+          clickSelectors: {
+            deleteMany: {},
+            create: clickSelectors.map((s) => ({
+              selector: s.selector,
+              selectorType: s.selectorType ?? "css",
+              description: s.description,
+              order: s.order ?? 0,
+            })),
+          },
+        }
         : {}),
     },
     include: { clickSelectors: { orderBy: { order: "asc" } } },
@@ -108,12 +108,12 @@ export async function deleteCampaign(userId: string, id: string) {
 }
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  DRAFT:     ["ACTIVE"],
-  ACTIVE:    ["PAUSED", "STOPPED"],
-  PAUSED:    ["ACTIVE", "STOPPED"],
-  STOPPED:   ["ACTIVE"],
+  DRAFT: ["ACTIVE"],
+  ACTIVE: ["PAUSED", "STOPPED"],
+  PAUSED: ["ACTIVE", "STOPPED"],
+  STOPPED: ["ACTIVE"],
   COMPLETED: [],
-  FAILED:    ["ACTIVE"],
+  FAILED: ["ACTIVE"],
 }
 
 export async function setCampaignAction(userId: string, id: string, action: "start" | "pause" | "stop") {
@@ -131,9 +131,9 @@ export async function setCampaignAction(userId: string, id: string, action: "sta
   const updated = isRecoveringActiveStart
     ? campaign
     : await prisma.campaign.update({
-        where: { id },
-        data: { status: targetStatus as any },
-      })
+      where: { id },
+      data: { status: targetStatus as any },
+    })
 
   if (!isRecoveringActiveStart) {
     publishCampaignStatus(id, targetStatus, `campaign.${action === "start" ? "started" : action === "pause" ? "paused" : "stopped"}`)
@@ -177,16 +177,16 @@ async function removeQueuedSessionJobs(campaignId: string, sessionIds?: string[]
   const queued = sessionIds
     ? sessionIds.map((id) => ({ id }))
     : await prisma.browserSession.findMany({
-        where: { campaignId, status: "QUEUED" },
-        select: { id: true },
-      })
+      where: { campaignId, status: "QUEUED" },
+      select: { id: true },
+    })
   if (!queued.length) return
 
   const queue = getSessionQueue()
   await Promise.all(
     queued.map(async ({ id }) => {
       const job = await Job.fromId(queue, `session-${id}`)
-      if (job) await job.remove().catch(() => {/* already processing */})
+      if (job) await job.remove().catch(() => {/* already processing */ })
     })
   )
 }
@@ -195,7 +195,9 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     select: {
+      userId: true,
       targetUrl: true,
+      launcherType: true,
       totalSessionsTarget: true,
       fingerprintProfileId: true,
       behaviourProfileId: true,
@@ -206,13 +208,14 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
   // Step 1: Re-enqueue any QUEUED sessions already in DB (orphaned from previous failed enqueue attempts)
   const orphaned = await prisma.browserSession.findMany({
     where: { campaignId, status: "QUEUED" },
-    select: { id: true },
+    select: { id: true, launcherType: true },
   })
 
   if (orphaned.length) {
     await prisma.browserSession.updateMany({
       where: { campaignId, status: "QUEUED" },
       data: {
+        launcherType: campaign.launcherType,
         fingerprintProfileId: campaign.fingerprintProfileId,
         behaviourProfileId: campaign.behaviourProfileId,
       },
@@ -223,7 +226,13 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
   let failed = 0
   for (const session of orphaned) {
     try {
-      await enqueueSession({ sessionId: session.id, campaignId, userId, attempt: 1 })
+      await enqueueSession({
+        sessionId: session.id,
+        campaignId,
+        launcherType: session.launcherType,
+        userId: campaign.userId,
+        attempt: 1
+      })
       enqueued++
     } catch (err) {
       failed++
@@ -243,6 +252,7 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
     const session = await prisma.browserSession.create({
       data: {
         campaignId,
+        launcherType: campaign.launcherType,
         targetUrl: campaign.targetUrl,
         status: "QUEUED",
         fingerprintProfileId: campaign.fingerprintProfileId,
@@ -250,7 +260,7 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
       },
     })
     try {
-      await enqueueSession({ sessionId: session.id, campaignId, userId, attempt: 1 })
+      await enqueueSession({ sessionId: session.id, campaignId, launcherType: campaign.launcherType, userId: campaign.userId, attempt: 1 })
       enqueued++
     } catch (err) {
       failed++

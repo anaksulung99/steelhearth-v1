@@ -4,7 +4,7 @@ import { NonEmptyStringSchema, OptionalStringSchema, PaginationQuerySchema, UrlS
 // -----------------------------------------------------------------------
 // Enums
 // -----------------------------------------------------------------------
-
+export const LauncherType = z.enum(["PLAYWRIGHT", "CRAWLEE"])
 export const CampaignStatusSchema = z.enum([
   "DRAFT", "ACTIVE", "PAUSED", "STOPPED", "COMPLETED", "FAILED",
 ])
@@ -47,6 +47,7 @@ export const CreateCampaignSchema = z.object({
   name: NonEmptyStringSchema,
   targetUrl: UrlSchema,
   description: OptionalStringSchema,
+  launcherType: LauncherType.default("PLAYWRIGHT"),
   fingerprintProfileId: z.string().cuid().optional(),
   behaviourProfileId: z.string().cuid().optional(),
   proxyGroupIds: z.array(z.string().cuid()).default([]),

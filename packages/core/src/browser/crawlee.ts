@@ -1,10 +1,7 @@
-import { BrowserController, PlaywrightCrawler, type BrowserPoolOptions } from 'crawlee';
 import {
   chromium,
   firefox,
   webkit,
-  type Browser,
-  type BrowserContext,
   type BrowserType,
 } from "playwright"
 import { FingerprintGenerator } from 'fingerprint-generator';
@@ -15,7 +12,6 @@ import {
   type FingerprintHint,
 } from './launch.js';
 import {
-  ENGINE_MAP,
   type BrowserEngine,
   type BrowserName,
   type OSName,
@@ -35,8 +31,10 @@ export class CrawleeBrowserPool {
     this.fingerprintInjector = new FingerprintInjector();
   }
 
-  async launchBrowser(hint: FingerprintHint): Promise<SessionBrowser> {
-    const isMobile = hint.isMobile ?? hint.deviceType === "MOBILE"
+  async launchBrowser(): Promise<SessionBrowser> {
+    const hint = this.options.fingerprint as FingerprintHint
+
+    const isMobile = hint?.isMobile ?? hint?.deviceType === "MOBILE"
     const browserVersion = hint.browserVersion;
 
     const fingerprint = this.fingerprintGenerator.getFingerprint({

@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { userApi, ApiError } from "@/api"
 import type { User, CreateUserWithLicenseDto, UpdateUserDto } from "@/api"
-import { toast } from "vue-sonner"
+import { toast } from 'vue3-toastify';
 
 export const useUserStore = defineStore("user", () => {
   const items = ref<User[]>([])

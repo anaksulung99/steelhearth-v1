@@ -1,12 +1,6 @@
 import { apiClient } from "./client.js"
-import type { ApiResponse, LicenseSession } from "./types.js"
+import type { ApiResponse, LicenseInfo, LicenseSession, ResetLicense, LicensePayload } from "./types.js"
 
-export interface LicensePayload {
-  email: string
-  licenseKey: string
-  deviceId: string
-  deviceName?: string
-}
 
 export const licenseApi = {
   activate(payload: LicensePayload) {
@@ -16,6 +10,10 @@ export const licenseApi = {
 
   validate(payload: LicensePayload) {
     return apiClient.post<ApiResponse<LicenseSession>>("/api/license/validate", payload)
+      .then((res) => res.data)
+  },
+  reset(payload: ResetLicense) {
+    return apiClient.post<ApiResponse<LicenseSession>>("/api/license/reset-activation", payload)
       .then((res) => res.data)
   },
 }

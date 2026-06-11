@@ -178,7 +178,7 @@
 
 @layer components {
   button {
-    @apply cursor-pointer active:scale-95 disabled:cursor-not-allowed;
+    @apply cursor-pointer disabled:cursor-not-allowed;
   }
 }
 

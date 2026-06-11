@@ -3,7 +3,7 @@ import { Icon } from "@iconify/vue";
 import { fingerprintsApi, ApiError } from "@/api";
 import type { FingerprintProfile } from "@/api";
 import { useGlobalAlert } from "@/composables/useAlert";
-import { toast } from "vue-sonner";
+import { toast } from "vue3-toastify";
 
 const router = useRouter();
 const { confirm } = useGlobalAlert();

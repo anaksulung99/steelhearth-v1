@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { proxiesApi, ApiError } from "@/api"
 import type { ProxyGroup, Proxy } from "@/api"
-import { toast } from "vue-sonner"
+import { toast } from 'vue3-toastify';
 
 export const useProxyStore = defineStore("proxy", () => {
   const groups = ref<ProxyGroup[]>([])

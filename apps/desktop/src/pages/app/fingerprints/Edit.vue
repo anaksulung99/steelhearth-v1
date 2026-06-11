@@ -2,7 +2,7 @@
 import { Icon } from "@iconify/vue";
 import { ref, onMounted } from "vue";
 import { fingerprintsApi, ApiError } from "@/api";
-import { toast } from "vue-sonner";
+import { toast } from "vue3-toastify";
 import {
   useFingerprintForm,
   OS_LABELS,
@@ -79,18 +79,24 @@ async function submit() {
       </button>
       <div>
         <h1 class="text-2xl font-bold">Edit Fingerprint Profile</h1>
-        <p class="text-sm text-muted-foreground">Update browser fingerprint settings</p>
+        <p class="text-sm text-muted-foreground">
+          Update browser fingerprint settings
+        </p>
       </div>
     </div>
 
-    <div v-if="loading" class="p-12 text-center text-sm text-muted-foreground">Loading...</div>
+    <div v-if="loading" class="p-12 text-center text-sm text-muted-foreground">
+      Loading...
+    </div>
 
     <form v-else class="space-y-4" @submit.prevent="submit">
       <!-- Basic Info -->
       <div class="rounded-lg border bg-card p-4 space-y-4">
         <h2 class="font-semibold text-sm">Basic Info</h2>
         <div class="space-y-1">
-          <label class="text-sm font-medium">Profile Name <span class="text-destructive">*</span></label>
+          <label class="text-sm font-medium"
+            >Profile Name <span class="text-destructive">*</span></label
+          >
           <input
             v-model="form.name"
             required
@@ -131,7 +137,13 @@ async function submit() {
               v-model="form.osVersion"
               class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option v-for="v in availableOsVersionOptions" :key="v" :value="v">{{ v }}</option>
+              <option
+                v-for="v in availableOsVersionOptions"
+                :key="v"
+                :value="v"
+              >
+                {{ v }}
+              </option>
             </select>
           </div>
         </div>
@@ -158,7 +170,13 @@ async function submit() {
               v-model="form.browserVersion"
               class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option v-for="v in availableBrowserVersionOptions" :key="v" :value="v">{{ v }}</option>
+              <option
+                v-for="v in availableBrowserVersionOptions"
+                :key="v"
+                :value="v"
+              >
+                {{ v }}
+              </option>
             </select>
           </div>
         </div>
@@ -177,7 +195,7 @@ async function submit() {
             v-model="form.userAgent"
             rows="2"
             placeholder="Leave empty or click Auto Generate"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            class="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
       </div>
@@ -214,7 +232,9 @@ async function submit() {
             />
           </div>
           <div class="space-y-1">
-            <label class="text-sm font-medium">Languages (comma-separated)</label>
+            <label class="text-sm font-medium"
+              >Languages (comma-separated)</label
+            >
             <input
               v-model="form.languagesStr"
               type="text"
@@ -254,14 +274,20 @@ async function submit() {
         >
           <span>Advanced Settings</span>
           <Icon
-            :icon="showAdvanced ? 'material-symbols:expand-less' : 'material-symbols:expand-more'"
+            :icon="
+              showAdvanced
+                ? 'material-symbols:expand-less'
+                : 'material-symbols:expand-more'
+            "
             class="size-4"
           />
         </button>
         <div v-if="showAdvanced" class="px-4 pb-4 space-y-4 border-t">
           <div class="grid grid-cols-2 gap-4 pt-4">
             <div class="space-y-1">
-              <label class="text-sm font-medium">Device Scale Factor (DPR)</label>
+              <label class="text-sm font-medium"
+                >Device Scale Factor (DPR)</label
+              >
               <input
                 v-model.number="form.deviceScaleFactor"
                 type="number"
@@ -305,11 +331,11 @@ async function submit() {
           </div>
           <div class="flex gap-6">
             <label class="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" v-model="form.isMobile" class="rounded" />
+              <input v-model="form.isMobile" type="checkbox" class="rounded" />
               isMobile
             </label>
             <label class="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" v-model="form.hasTouch" class="rounded" />
+              <input v-model="form.hasTouch" type="checkbox" class="rounded" />
               hasTouch
             </label>
           </div>

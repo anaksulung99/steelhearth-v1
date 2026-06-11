@@ -16,6 +16,7 @@ export const SessionStatusSchema = z.enum([
 export const SessionResponseSchema = z.object({
   id: z.string(),
   campaignId: z.string(),
+  launcherType: z.enum(["PLAYWRIGHT", "CRAWLEE"]).default("PLAYWRIGHT"),
   fingerprintProfileId: z.string().nullable(),
   behaviourProfileId: z.string().nullable(),
   proxyId: z.string().nullable(),

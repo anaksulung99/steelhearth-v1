@@ -2,6 +2,10 @@
 import { Icon } from "@iconify/vue";
 import { logsApi } from "@/api";
 import type { SystemLog } from "@/api";
+import { toast } from "vue3-toastify";
+
+const appStore = useAppStore();
+const { warning } = useGlobalAlert();
 
 const logs = ref<SystemLog[]>([]);
 const total = ref(0);
@@ -10,7 +14,9 @@ const level = ref("");
 const page = ref(1);
 const limit = 50;
 
-onMounted(() => loadLogs());
+onMounted(async () => {
+  await loadLogs();
+});
 watch([level, page], () => loadLogs());
 
 async function loadLogs() {
@@ -34,6 +40,28 @@ const levelColor: Record<string, string> = {
   WARN: "text-yellow-600",
   ERROR: "text-red-600",
 };
+
+async function handleResetAllLogs() {
+  if (!appStore.licenseSession?.user) {
+    toast.error("User not found");
+    return;
+  }
+
+  const ok = await warning(`Reset All Logs?`, `This action cannot be undone.`);
+  if (!ok) return;
+
+  try {
+    await logsApi.resetAllLogs(appStore.licenseSession?.user.id);
+    toast.success("All logs successfull deleted");
+    await loadLogs();
+  } catch (error) {
+    const errMsg =
+      error instanceof Error
+        ? error.message
+        : "Failed to resetl all logs! Unknown errror";
+    toast.error(errMsg);
+  }
+}
 </script>
 
 <template>
@@ -45,16 +73,28 @@ const levelColor: Record<string, string> = {
           {{ total }} log entries
         </p>
       </div>
-      <select
-        v-model="level"
-        class="rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-      >
-        <option value="">All Levels</option>
-        <option value="DEBUG">Debug</option>
-        <option value="INFO">Info</option>
-        <option value="WARN">Warning</option>
-        <option value="ERROR">Error</option>
-      </select>
+      <div class="flex items-center gap-2">
+        <select
+          v-model="level"
+          class="rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="">All Levels</option>
+          <option value="DEBUG">Debug</option>
+          <option value="INFO">Info</option>
+          <option value="WARN">Warning</option>
+          <option value="ERROR">Error</option>
+        </select>
+        <button
+          class="inline-flex items-center gap-2 rounded-md bg-destructive px-4 py-2 text-sm font-medium text-white hover:bg-destructive/90"
+          @click="handleResetAllLogs"
+        >
+          <Icon
+            icon="material-symbols:reset-settings-outline-rounded"
+            class="size-4"
+          />
+          Reset Logs
+        </button>
+      </div>
     </div>
 
     <div class="rounded-lg border bg-card overflow-hidden">

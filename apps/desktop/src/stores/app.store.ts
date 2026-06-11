@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { apiClient, settingsApi, licenseApi, ApiError } from "@/api"
 import type { LicenseSession } from "@/api"
-import { toast } from "vue-sonner"
+import { toast } from 'vue3-toastify';
 
 const API_URL_KEY = "tb_api_url"
 const API_TOKEN_KEY = "tb_api_token"

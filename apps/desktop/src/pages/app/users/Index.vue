@@ -1,10 +1,11 @@
 <script lang="ts" setup>
 import type { User } from "@/api";
 import { Icon } from "@iconify/vue";
-import { toast } from "vue-sonner";
+import { toast } from "vue3-toastify";
 import type { CreateUserWithLicenseDto, UpdateUserDto } from "@/api";
 
 const userStore = useUserStore();
+const licenseStore = useLicenseStore();
 const { confirm, warning } = useGlobalAlert();
 
 const search = ref("");
@@ -133,6 +134,26 @@ async function submitUpdate() {
 function handleGenerateLicense() {
   inviteForm.licenseKey = generateLicenseKey();
 }
+
+async function handleResetLicense(data: User) {
+  if (!data) {
+    toast.error("User not found");
+    return;
+  }
+
+  const ok = await warning(
+    `Reset License for "${data?.name}"?`,
+    `This action cannot be undone.`
+  );
+  if (!ok) return;
+
+  const payload = {
+    email: data.email,
+    licenseKey: data.license.licenseKey,
+    resetToken: import.meta.env.LICENSE_RESET_TOKEN,
+  };
+  await licenseStore.reset(payload);
+}
 </script>
 <template>
   <div class="p-6 space-y-4">
@@ -187,7 +208,7 @@ function handleGenerateLicense() {
         />
         <p class="text-sm text-muted-foreground">No users found</p>
         <button
-          class="text-sm text-primary hover:underline"
+          class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           @click="showInviteUser = true"
         >
           <Icon icon="material-symbols:add" class="size-4" />
@@ -272,6 +293,16 @@ function handleGenerateLicense() {
                   "
                 >
                   <Icon icon="material-symbols:edit-outline" class="size-4" />
+                </button>
+                <button
+                  title="Reset License"
+                  class="p-1 rounded hover:bg-amber-500/10 text-amber-500"
+                  @click="handleResetLicense(c)"
+                >
+                  <Icon
+                    icon="material-symbols:reset-wrench-outline-rounded"
+                    class="size-4"
+                  />
                 </button>
                 <button
                   title="Delete"

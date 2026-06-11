@@ -16,13 +16,20 @@ import { notifySessionStatus, notifySessionProgress } from "../helpers/notifier.
 import {
   launchBrowser,
   simulateBehaviour,
+  CrawleeBrowserPool,
+  CrawleeHumanBehaviourSimulator,
   pickProxy,
   formatProxy,
   buildReferrer,
   type FingerprintHint,
   type BehaviourConfig,
+  type SessionBrowser,
+  type SimulateResult,
+  type LaunchOptions,
 } from "@tb/core"
 import { config } from "../config.js"
+
+type LauncherType = "PLAYWRIGHT" | "CRAWLEE"
 
 export async function processSession(
   job: Job<SessionJobData, SessionJobResult>
@@ -128,66 +135,84 @@ export async function processSession(
     fingerprintProfile: fp?.name ?? "generated",
   })
 
-  const sessionBrowser = await launchBrowser({
+  let sessionBrowser: SessionBrowser | null = null
+  const launcherType = (session.launcherType ?? job.data.launcherType ?? campaign.launcherType ?? "PLAYWRIGHT") as LauncherType
+
+  const launchOpts = {
     engine: campaign.browserEngine as "CHROMIUM" | "FIREFOX" | "WEBKIT",
     headless: campaign.headless,
     ...(proxy ? { proxy: formatProxy(proxy) } : {}),
     fingerprint: fingerprintHint,
     launchTimeout: 30_000,
     navigationTimeout: 30_000,
-  })
-
-  const proxyMeta = proxy as (typeof proxy & {
-    ip?: string | null
-    country?: string | null
-    countryCode?: string | null
-    city?: string | null
-  })
-
-  await markSessionRuntimeMetadata(sessionId, {
-    fingerprintProfileId: campaign.fingerprintProfileId,
-    behaviourProfileId: campaign.behaviourProfileId,
-    ...(proxyMeta
-      ? {
-        proxyId: proxyMeta.id,
-        ip: proxyMeta.ip,
-        country: proxyMeta.country,
-        countryCode: proxyMeta.countryCode,
-        city: proxyMeta.city,
-      }
-      : {}),
-    userAgent: sessionBrowser.userAgent,
-  })
-
-  await addSessionEvent(sessionId, campaignId, "session.browser_launched", {
-    engine: campaign.browserEngine,
-    ua: sessionBrowser.userAgent,
-    timezone: sessionBrowser.timezone,
-  })
-  await job.updateProgress(20)
-  await notifySessionProgress(sessionId, campaignId, 20)
+  }
+  const cfg: BehaviourConfig = {
+    minDwellSeconds: behaviour?.minDwellSeconds ?? 10,
+    maxDwellSeconds: behaviour?.maxDwellSeconds ?? 60,
+    minScrollCount: behaviour?.minScrollCount ?? 2,
+    maxScrollCount: behaviour?.maxScrollCount ?? 8,
+    scrollSpeedMin: behaviour?.scrollSpeedMin ?? 100,
+    scrollSpeedMax: behaviour?.scrollSpeedMax ?? 500,
+    enableInternalNav: behaviour?.enableInternalNav ?? false,
+    maxInternalClicks: behaviour?.maxInternalClicks ?? 0,
+    clickSelectors: mergedSelectors,
+  }
 
   let result: SessionJobResult
 
   try {
+    sessionBrowser = await launchSessionBrowser(launcherType, launchOpts)
+
+    const proxyMeta = proxy as (typeof proxy & {
+      ip?: string | null
+      country?: string | null
+      countryCode?: string | null
+      city?: string | null
+    })
+
+    await markSessionRuntimeMetadata(sessionId, {
+      fingerprintProfileId: campaign.fingerprintProfileId,
+      behaviourProfileId: campaign.behaviourProfileId,
+      ...(proxyMeta
+        ? {
+          proxyId: proxyMeta.id,
+          ip: proxyMeta.ip,
+          country: proxyMeta.country,
+          countryCode: proxyMeta.countryCode,
+          city: proxyMeta.city,
+        }
+        : {}),
+      userAgent: sessionBrowser.userAgent,
+    })
+
+    await addSessionEvent(sessionId, campaignId, "session.browser_launched", {
+      launcherType,
+      engine: campaign.browserEngine,
+      ua: sessionBrowser.userAgent,
+      timezone: sessionBrowser.timezone,
+    })
+    await job.updateProgress(20)
+    await notifySessionProgress(sessionId, campaignId, 20)
+
     const page = await sessionBrowser.context.newPage()
 
-    const cfg: BehaviourConfig = {
-      minDwellSeconds: behaviour?.minDwellSeconds ?? 10,
-      maxDwellSeconds: behaviour?.maxDwellSeconds ?? 60,
-      minScrollCount: behaviour?.minScrollCount ?? 2,
-      maxScrollCount: behaviour?.maxScrollCount ?? 8,
-      scrollSpeedMin: behaviour?.scrollSpeedMin ?? 100,
-      scrollSpeedMax: behaviour?.scrollSpeedMax ?? 500,
-      enableInternalNav: behaviour?.enableInternalNav ?? false,
-      maxInternalClicks: behaviour?.maxInternalClicks ?? 0,
-      clickSelectors: mergedSelectors,
-    }
+
 
     await job.updateProgress(30)
     await notifySessionProgress(sessionId, campaignId, 30)
 
-    const simResult = await simulateBehaviour(page, campaign.targetUrl, referrer, cfg)
+    let simResult: SimulateResult
+    switch (launcherType) {
+      case "PLAYWRIGHT":
+        simResult = await simulateBehaviour(page, campaign.targetUrl, referrer, cfg)
+        break
+      case "CRAWLEE":
+        const crawleeSimulation = new CrawleeHumanBehaviourSimulator(page, campaign.targetUrl, referrer, cfg)
+        simResult = await crawleeSimulation.simulateHumanBehaviour()
+        break
+      default:
+        simResult = await simulateBehaviour(page, campaign.targetUrl, referrer, cfg)
+    }
 
     await job.updateProgress(90)
     await notifySessionProgress(sessionId, campaignId, 90)
@@ -234,8 +259,27 @@ export async function processSession(
       error: message,
     }
   } finally {
-    await sessionBrowser.close()
+    await sessionBrowser?.close()
   }
 
   return result
+}
+
+async function launchSessionBrowser(
+  launcherType: LauncherType,
+  opts: LaunchOptions,
+): Promise<SessionBrowser> {
+  if (launcherType === "CRAWLEE") {
+    const browserPool = new CrawleeBrowserPool(opts)
+    const sessionBrowser = await browserPool.launchBrowser()
+    return {
+      ...sessionBrowser,
+      close: async () => {
+        await sessionBrowser.close()
+        await browserPool.closeAll()
+      },
+    }
+  }
+
+  return launchBrowser(opts)
 }

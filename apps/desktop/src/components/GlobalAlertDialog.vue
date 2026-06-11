@@ -2,7 +2,6 @@
 import { computed } from "vue";
 import {
   AlertDialog,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -95,16 +94,25 @@ const IconComponent = computed(() => {
 
       <!-- Footer -->
       <AlertDialogFooter class="flex-col-reverse gap-2 sm:flex-row sm:gap-3">
-        <AlertDialogCancel
+        <button
           v-if="currentAlert && !currentAlert.persistent"
-          :class="currentAlert.cancelClass"
+          type="button"
+          :class="
+            cn(
+              buttonVariants({ variant: 'outline' }),
+              'mt-2 cursor-pointer active:scale-95 sm:mt-0',
+              currentAlert.cancelClass
+            )
+          "
+          @click="handleCancel"
         >
           {{ currentAlert.cancelLabel }}
-        </AlertDialogCancel>
+        </button>
 
         <!-- Custom confirm button with dynamic variant -->
         <button
           v-if="currentAlert"
+          type="button"
           :class="
             cn(
               buttonVariants({

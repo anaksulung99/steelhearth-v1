@@ -1,6 +1,7 @@
 import { prisma } from "@tb/database"
 import type { QueryLogDto } from "@tb/contracts"
 import { parsePagination } from "../helpers/pagination.js"
+import { notFound, forbidden } from "../helpers/errors.js"
 
 export async function listLogs(query: QueryLogDto) {
   const { page, limit, skip } = parsePagination(query)
@@ -19,4 +20,20 @@ export async function listLogs(query: QueryLogDto) {
     prisma.systemLog.count({ where }),
   ])
   return { data, total, page, limit }
+}
+export async function resetAllLogs(adminId: string) {
+  const user = await prisma.user.findUnique({
+    where: {
+      id: adminId
+    }
+  })
+  if (!user) return notFound("Session")
+
+  if (user.role !== "OWNER") return forbidden("Permission denied")
+
+  await Promise.all([
+    prisma.browserSession.deleteMany(),
+    prisma.sessionEvent.deleteMany(),
+    prisma.systemLog.deleteMany()
+  ])
 }

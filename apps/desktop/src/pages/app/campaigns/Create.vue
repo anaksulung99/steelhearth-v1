@@ -23,6 +23,7 @@ const form = reactive<CreateCampaignDto>({
   name: "",
   targetUrl: "",
   description: "",
+  launcherType: "PLAYWRIGHT",
   fingerprintProfileId: undefined,
   behaviourProfileId: undefined,
   proxyGroupIds: [],
@@ -92,7 +93,7 @@ async function submit() {
 
   const payload: CreateCampaignDto = {
     ...form,
-    // Strip empty strings from optional cuid fields — Vue select can produce "" for :value="undefined"
+    launcherType: form.launcherType,
     behaviourProfileId: form.behaviourProfileId || undefined,
     fingerprintProfileId: form.fingerprintProfileId || undefined,
     // Ensure geoMode is always a valid enum value
@@ -163,6 +164,31 @@ async function submit() {
               class="bg-input"
               :disabled="submitting"
             />
+          </div>
+          <div class="space-y-1 col-span-2">
+            <Label class="text-sm font-medium">
+              Browser Launcher <span class="text-destructive">*</span>
+            </Label>
+            <Select
+              v-model="form.launcherType"
+              name="launcherType"
+              :disabled="submitting"
+            >
+              <SelectTrigger class="bg-input">
+                <SelectValue
+                  class="bg-input"
+                  :placeholder="
+                    form.launcherType ? form.launcherType : 'Select a launcher'
+                  "
+                />
+              </SelectTrigger>
+              <SelectContent class="w-full">
+                <SelectGroup>
+                  <SelectItem value="PLAYWRIGHT"> Playwright </SelectItem>
+                  <SelectItem value="CRAWLEE"> Crawlee </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
           <div class="space-y-1 col-span-2">
             <Label class="text-sm font-medium">Description</Label>

@@ -85,6 +85,7 @@ export interface Campaign {
   name: string
   targetUrl: string
   description: string | null
+  launcherType: "PLAYWRIGHT" | "CRAWLEE"
   status: "DRAFT" | "ACTIVE" | "PAUSED" | "STOPPED" | "COMPLETED" | "FAILED"
   fingerprintProfileId: string | null
   behaviourProfileId: string | null
@@ -131,6 +132,7 @@ export interface CreateCampaignDto {
   name: string
   targetUrl: string
   description?: string
+  launcherType?: string
   proxyGroupIds?: string[]
   fingerprintProfileId?: string | null
   behaviourProfileId?: string | null
@@ -383,7 +385,20 @@ export interface LicenseUser {
   isActive: boolean
 }
 
+export interface LicensePayload {
+  email: string
+  licenseKey: string
+  deviceId: string
+  deviceName?: string
+}
+
 export interface LicenseSession {
   user: LicenseUser
   license: LicenseInfo
+}
+
+export interface ResetLicense {
+  email: string
+  licenseKey: string
+  resetToken: string
 }

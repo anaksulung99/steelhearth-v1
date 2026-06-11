@@ -13,54 +13,64 @@ const proxyStore = useProxyStore();
 // ─── WS event handlers (named so we can off() them on unmount) ───────────────
 
 // Campaign status
-const onCampaignStarted   = (d: any) => campaignStore.patchStatus(d.campaignId, "ACTIVE")
-const onCampaignPaused    = (d: any) => campaignStore.patchStatus(d.campaignId, "PAUSED")
-const onCampaignStopped   = (d: any) => campaignStore.patchStatus(d.campaignId, "STOPPED")
-const onCampaignCompleted = (d: any) => campaignStore.patchStatus(d.campaignId, "COMPLETED")
-const onCampaignFailed    = (d: any) => campaignStore.patchStatus(d.campaignId, "FAILED")
+const onCampaignStarted = (d: any) =>
+  campaignStore.patchStatus(d.campaignId, "ACTIVE");
+const onCampaignPaused = (d: any) =>
+  campaignStore.patchStatus(d.campaignId, "PAUSED");
+const onCampaignStopped = (d: any) =>
+  campaignStore.patchStatus(d.campaignId, "STOPPED");
+const onCampaignCompleted = (d: any) =>
+  campaignStore.patchStatus(d.campaignId, "COMPLETED");
+const onCampaignFailed = (d: any) =>
+  campaignStore.patchStatus(d.campaignId, "FAILED");
 
 // Session progress
-const onSessionProgress = (d: any) => campaignStore.patchSessionProgress(d.sessionId, d.campaignId, d.progress)
+const onSessionProgress = (d: any) =>
+  campaignStore.patchSessionProgress(d.sessionId, d.campaignId, d.progress);
 
 // Proxy status
-const onProxyActive  = (d: any) => proxyStore.patchProxy(d.proxyId, { status: "ACTIVE" })
-const onProxyDead    = (d: any) => proxyStore.patchProxy(d.proxyId, { status: "DEAD" })
-const onProxySlow    = (d: any) => proxyStore.patchProxy(d.proxyId, { status: "SLOW" })
-const onProxyBlocked = (d: any) => proxyStore.patchProxy(d.proxyId, { status: "BLOCKED" })
+const onProxyActive = (d: any) =>
+  proxyStore.patchProxy(d.proxyId, { status: "ACTIVE" });
+const onProxyDead = (d: any) =>
+  proxyStore.patchProxy(d.proxyId, { status: "DEAD" });
+const onProxySlow = (d: any) =>
+  proxyStore.patchProxy(d.proxyId, { status: "SLOW" });
+const onProxyBlocked = (d: any) =>
+  proxyStore.patchProxy(d.proxyId, { status: "BLOCKED" });
 
 onMounted(() => {
-  ws.connect()
+  ws.connect();
 
-  ws.on("campaign.started",   onCampaignStarted)
-  ws.on("campaign.paused",    onCampaignPaused)
-  ws.on("campaign.stopped",   onCampaignStopped)
-  ws.on("campaign.completed", onCampaignCompleted)
-  ws.on("campaign.failed",    onCampaignFailed)
+  ws.on("campaign.started", onCampaignStarted);
+  ws.on("campaign.paused", onCampaignPaused);
+  ws.on("campaign.stopped", onCampaignStopped);
+  ws.on("campaign.completed", onCampaignCompleted);
+  ws.on("campaign.failed", onCampaignFailed);
 
-  ws.on("session.progress",  onSessionProgress)
+  ws.on("session.progress", onSessionProgress);
 
-  ws.on("proxy.active",  onProxyActive)
-  ws.on("proxy.dead",    onProxyDead)
-  ws.on("proxy.slow",    onProxySlow)
-  ws.on("proxy.blocked", onProxyBlocked)
-})
+  ws.on("proxy.active", onProxyActive);
+  ws.on("proxy.dead", onProxyDead);
+  ws.on("proxy.slow", onProxySlow);
+  ws.on("proxy.blocked", onProxyBlocked);
+});
 
 onUnmounted(() => {
-  ws.off("campaign.started",   onCampaignStarted)
-  ws.off("campaign.paused",    onCampaignPaused)
-  ws.off("campaign.stopped",   onCampaignStopped)
-  ws.off("campaign.completed", onCampaignCompleted)
-  ws.off("campaign.failed",    onCampaignFailed)
+  ws.off("campaign.started", onCampaignStarted);
+  ws.off("campaign.paused", onCampaignPaused);
+  ws.off("campaign.stopped", onCampaignStopped);
+  ws.off("campaign.completed", onCampaignCompleted);
+  ws.off("campaign.failed", onCampaignFailed);
 
-  ws.off("session.progress",  onSessionProgress)
+  ws.off("session.progress", onSessionProgress);
 
-  ws.off("proxy.active",  onProxyActive)
-  ws.off("proxy.dead",    onProxyDead)
-  ws.off("proxy.slow",    onProxySlow)
-  ws.off("proxy.blocked", onProxyBlocked)
+  ws.off("proxy.active", onProxyActive);
+  ws.off("proxy.dead", onProxyDead);
+  ws.off("proxy.slow", onProxySlow);
+  ws.off("proxy.blocked", onProxyBlocked);
 
-  ws.disconnect()
-})
+  ws.disconnect();
+});
 </script>
 
 <template>
@@ -89,11 +99,19 @@ onUnmounted(() => {
             <!-- WS status indicator -->
             <span
               class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-              :title="ws.connected.value ? 'Real-time connected' : 'Real-time disconnected'"
+              :title="
+                ws.connected.value
+                  ? 'Real-time connected'
+                  : 'Real-time disconnected'
+              "
             >
               <span
                 class="size-2 rounded-full"
-                :class="ws.connected.value ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40'"
+                :class="
+                  ws.connected.value
+                    ? 'bg-emerald-500 animate-pulse'
+                    : 'bg-muted-foreground/40'
+                "
               />
             </span>
             <MusicControl />

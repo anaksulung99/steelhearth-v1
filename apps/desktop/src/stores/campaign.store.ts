@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { campaignsApi, ApiError } from "@/api"
 import type { Campaign, CreateCampaignDto, UpdateCampaignDto } from "@/api"
-import { toast } from "vue-sonner"
+import { toast } from 'vue3-toastify';
 
 export const useCampaignStore = defineStore("campaign", () => {
   const items = ref<Campaign[]>([])

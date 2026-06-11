@@ -178,18 +178,10 @@ export function useAlert() {
   // ─── Internal Handlers (called by GlobalAlertDialog.vue) ────────────────────
 
   const handleConfirm = () => {
-    const current = currentAlert.value
-    if (current) {
-      current.resolve(true)
-    }
     close(true)
   }
 
   const handleCancel = () => {
-    const current = currentAlert.value
-    if (current) {
-      current.resolve(false)
-    }
     close(false)
   }
 

@@ -2,7 +2,7 @@
 import { Icon } from "@iconify/vue";
 import { ref } from "vue";
 import { fingerprintsApi, ApiError } from "@/api";
-import { toast } from "vue-sonner";
+import { toast } from "vue3-toastify";
 import {
   useFingerprintForm,
   OS_LABELS,

@@ -9,4 +9,9 @@ export async function logRoutes(app: FastifyInstance) {
     const { data, total, page, limit } = await svc.listLogs(query)
     return paginated(data, buildMeta(total, page, limit))
   })
+  app.delete("/reset-logs/:adminID", async (req, reply) => {
+    const { adminID } = req.params as { adminID: string }
+    await svc.resetAllLogs(adminID)
+    return reply.status(204).send()
+  })
 }

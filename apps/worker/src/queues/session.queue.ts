@@ -4,6 +4,7 @@ import { QUEUE_NAMES } from "./names.js"
 export interface SessionJobData {
   sessionId: string
   campaignId: string
+  launcherType?: "PLAYWRIGHT" | "CRAWLEE"
   userId: string
   attempt: number
 }
