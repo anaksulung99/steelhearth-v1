@@ -22,6 +22,7 @@
   "dependencies": {
     "@tb/shared": "workspace:*",
     "cheerio": "^1.2.0",
+    "crawlee": "^3.17.0",
     "fingerprint-generator": "^2.1.82",
     "fingerprint-injector": "^2.1.82",
     "header-generator": "^2.1.82",

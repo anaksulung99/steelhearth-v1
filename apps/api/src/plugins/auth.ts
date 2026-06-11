@@ -40,6 +40,18 @@ async function authPlugin(app: FastifyInstance) {
     // Skip unauthenticated bootstrap endpoints.
     if (request.url === "/health" || request.url.startsWith("/api/license/")) return
 
+    if (request.url.startsWith("/internal/")) {
+      const expectedToken = process.env["API_INTERNAL_TOKEN"]
+      const token = request.headers["x-internal-token"]
+      if (!expectedToken && process.env["NODE_ENV"] !== "production") return
+      if (expectedToken && token === expectedToken) return
+
+      return reply.status(401).send({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "Invalid internal API token" },
+      })
+    }
+
     const setting = await prisma.appSetting.findFirst({
       where: { key: "api_token" },
     })

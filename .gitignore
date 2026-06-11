@@ -34,6 +34,7 @@ docs/*
 .env.production.example
 env.production
 .env.local.production
+**/.env*
 .eslintrc-auto-import.json
 node_modules
 dist

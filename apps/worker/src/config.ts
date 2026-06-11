@@ -36,6 +36,7 @@ export const config = {
   api: {
     url: optional("API_URL", "http://127.0.0.1:3741"),
     token: optional("API_TOKEN", ""),
+    internalToken: optional("API_INTERNAL_TOKEN", ""),
   },
 
   redis: {

@@ -8,10 +8,12 @@ export { checkProxy, checkProxies, resolveProxyStatus } from "./proxy/checker.js
 // Browser
 export type { BrowserEngine, DeviceType, FingerprintHint, LaunchOptions, SessionBrowser } from "./browser/launch.js"
 export { launchBrowser } from "./browser/launch.js"
+export { CrawleeBrowserPool } from "./browser/crawlee.js"
 
 // Simulator
 export type { BehaviourConfig, SimulateResult, SimulateEvent } from "./simulator/types.js"
 export { simulateBehaviour } from "./simulator/simulate.js"
+export { CrawleeHumanBehaviourSimulator } from "./simulator/crawlee-simulator.js"
 
 // Utils
 export { rand, sleep, pickRandom, pickRandomOr } from "./utils/random.js"

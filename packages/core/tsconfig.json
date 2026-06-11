@@ -8,7 +8,6 @@
     "sourceMap": true,
     "lib": ["ES2020", "DOM"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../../docs/crawlee-integration.ts"],
   "exclude": ["dist", "node_modules"]
 }
-

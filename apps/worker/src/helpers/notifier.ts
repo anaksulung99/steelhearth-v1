@@ -11,6 +11,7 @@ export async function notifyApi(path: string, body: unknown) {
       headers: {
         "Content-Type": "application/json",
         ...(config.api.token ? { "x-api-token": config.api.token } : {}),
+        ...(config.api.internalToken ? { "x-internal-token": config.api.internalToken } : {}),
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),

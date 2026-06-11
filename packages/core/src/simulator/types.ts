@@ -10,6 +10,11 @@ export interface BehaviourConfig {
   maxInternalClicks: number
   /** CSS, XPath, or element id selectors to attempt clicking */
   clickSelectors: ClickSelector[]
+  // Additional
+  clickProbability?: number;
+  mouseMoveProbability?: number;
+  typingSpeedMin?: number;
+  typingSpeedMax?: number;
 }
 
 export type ClickSelectorType = "css" | "xpath" | "elementId"
@@ -17,9 +22,9 @@ export type ClickSelectorType = "css" | "xpath" | "elementId"
 export type ClickSelector =
   | string
   | {
-      selector: string
-      selectorType?: ClickSelectorType | string
-    }
+    selector: string
+    selectorType?: ClickSelectorType | string
+  }
 
 export interface SimulateResult {
   pagesVisited: number
