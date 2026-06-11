@@ -6,7 +6,25 @@ export type { ProxyCheckResult, CheckOptions, BatchCheckOptions } from "./proxy/
 export { checkProxy, checkProxies, resolveProxyStatus } from "./proxy/checker.js"
 
 // Browser
-export type { BrowserEngine, DeviceType, FingerprintHint, LaunchOptions, SessionBrowser } from "./browser/launch.js"
+export type {
+  BrowserEngine,
+  DeviceType,
+  OSName,
+  BrowserName,
+} from "./utils/types.js"
+export {
+  DEVICE_OS_MAP,
+  OS_VERSION_MAP,
+  OS_BROWSER_COMPAT,
+  BROWSER_VERSION_MAP,
+  OS_LABELS,
+  BROWSER_LABELS,
+  ENGINE_MAP,
+  VIEWPORT_PRESETS,
+  WEBGL_PRESETS,
+} from "./utils/types.js"
+export { getViewport, getWebGLVendor, generateUserAgent } from "./utils/preset.js"
+export type { FingerprintHint, LaunchOptions, SessionBrowser } from "./browser/launch.js"
 export { launchBrowser } from "./browser/launch.js"
 export { CrawleeBrowserPool } from "./browser/crawlee.js"
 

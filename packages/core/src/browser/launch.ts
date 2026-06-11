@@ -9,21 +9,30 @@ import {
 import { FingerprintGenerator } from "fingerprint-generator"
 import { FingerprintInjector } from "fingerprint-injector"
 import type { PlaywrightProxy } from "../proxy/types.js"
-import { pickRandom } from "../utils/random.js"
-
-export type BrowserEngine = "CHROMIUM" | "FIREFOX" | "WEBKIT"
-export type DeviceType = "DESKTOP" | "MOBILE"
+import type { BrowserEngine, DeviceType, OSName, BrowserName } from "../utils/types.js"
 
 export interface FingerprintHint {
   deviceType?: DeviceType
   osName?: string
+  osVersion?: string | null
   browserName?: string
+  browserVersion?: string | null
   userAgent?: string | null
   language?: string
   timezone?: string
+  locale?: string
   viewportWidth?: number
   viewportHeight?: number
+  deviceScaleFactor?: number
   isMobile?: boolean
+  hasTouch?: boolean
+  canvasMode?: string
+  canvasSeed?: number | null
+  webglVendor?: string | null
+  webglRenderer?: string | null
+  hardwareConcurrency?: number | null
+  deviceMemory?: number | null
+  extraConfig?: Record<string, any> | null
 }
 
 export interface LaunchOptions {
@@ -133,7 +142,7 @@ export async function launchBrowser(opts: LaunchOptions): Promise<SessionBrowser
 
   // Inject full fingerprint (screen, plugins, canvas noise, etc.)
   // fp is BrowserFingerprintWithHeaders: { fingerprint, headers }
-  await injector.attachFingerprintToPlaywright(context, fp as any)
+  await injector.attachFingerprintToPlaywright(context, fp)
 
   // Extra stealth init scripts — run in browser context (DOM is available at runtime)
   await context.addInitScript(`(function() {
@@ -157,8 +166,8 @@ export async function launchBrowser(opts: LaunchOptions): Promise<SessionBrowser
     timezone,
     userAgent,
     close: async () => {
-      await context.close().catch(() => {})
-      await browser.close().catch(() => {})
+      await context.close().catch(() => { })
+      await browser.close().catch(() => { })
     },
   }
 }

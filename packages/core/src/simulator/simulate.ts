@@ -28,9 +28,9 @@ async function moveMouseNatural(page: Page): Promise<void> {
   const y2 = rand(50, maxY)
 
   // Move in two steps for a more natural curve
-  await page.mouse.move(x1, y1, { steps: rand(5, 15) }).catch(() => {})
+  await page.mouse.move(x1, y1, { steps: rand(5, 15) }).catch(() => { })
   await sleep(rand(80, 200))
-  await page.mouse.move(x2, y2, { steps: rand(5, 15) }).catch(() => {})
+  await page.mouse.move(x2, y2, { steps: rand(5, 15) }).catch(() => { })
 }
 
 function normalizeClickSelector(input: ClickSelector): { selector: string; selectorType: string } {
@@ -49,7 +49,7 @@ async function tryClickSelector(page: Page, input: ClickSelector): Promise<boole
     if (!el) return false
     const visible = await el.isVisible().catch(() => false)
     if (!visible) return false
-    await el.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {})
+    await el.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => { })
     await sleep(rand(100, 300))
     await el.click({ delay: rand(40, 180), timeout: 5000 })
     return true
@@ -80,7 +80,6 @@ async function waitForPageSettle(page: Page): Promise<void> {
 }
 
 // ─── Main simulate function ───────────────────────────────────────────────────
-
 export async function simulateBehaviour(
   page: Page,
   targetUrl: string,
@@ -132,7 +131,7 @@ export async function simulateBehaviour(
         pagesVisited++
         events.push("NAVIGATE")
         await sleep(rand(1500, 4000))
-        await page.goBack({ timeout: 8000, waitUntil: "domcontentloaded" }).catch(() => {})
+        await page.goBack({ timeout: 8000, waitUntil: "domcontentloaded" }).catch(() => { })
         events.push("BACK")
         await sleep(rand(600, 1200))
       }
@@ -167,7 +166,7 @@ export async function simulateBehaviour(
       if (link) {
         await page
           .goto(link, { waitUntil: "domcontentloaded", timeout: 15_000 })
-          .catch(() => {})
+          .catch(() => { })
         pagesVisited++
         internalClicks++
         events.push("INTERNAL_NAV")

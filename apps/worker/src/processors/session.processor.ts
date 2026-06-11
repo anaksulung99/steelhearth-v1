@@ -75,16 +75,28 @@ export async function processSession(
   // Build fingerprint hint from DB profile (if set)
   const fingerprintHint: FingerprintHint = fp
     ? {
-        deviceType: fp.deviceType as "DESKTOP" | "MOBILE",
-        osName: fp.osName,
-        browserName: fp.browserName,
-        userAgent: fp.userAgent,
-        language: fp.language,
-        timezone: fp.timezone,
-        viewportWidth: fp.viewportWidth,
-        viewportHeight: fp.viewportHeight,
-        isMobile: fp.isMobile,
-      }
+      deviceType: fp.deviceType as "DESKTOP" | "MOBILE",
+      osName: fp.osName,
+      osVersion: fp.osVersion,
+      browserName: fp.browserName,
+      browserVersion: fp.browserVersion,
+      userAgent: fp.userAgent,
+      language: fp.language,
+      timezone: fp.timezone,
+      locale: fp.locale,
+      viewportWidth: fp.viewportWidth,
+      viewportHeight: fp.viewportHeight,
+      deviceScaleFactor: fp.deviceScaleFactor,
+      isMobile: fp.isMobile,
+      hasTouch: fp.hasTouch,
+      canvasMode: fp.canvasMode,
+      canvasSeed: fp.canvasSeed,
+      webglVendor: fp.webglVendor,
+      webglRenderer: fp.webglRenderer,
+      hardwareConcurrency: fp.hardwareConcurrency,
+      deviceMemory: fp.deviceMemory,
+      extraConfig: fp.extraConfig as any
+    }
     : { deviceType: "DESKTOP" }
 
   // Collect active proxies
@@ -137,12 +149,12 @@ export async function processSession(
     behaviourProfileId: campaign.behaviourProfileId,
     ...(proxyMeta
       ? {
-          proxyId: proxyMeta.id,
-          ip: proxyMeta.ip,
-          country: proxyMeta.country,
-          countryCode: proxyMeta.countryCode,
-          city: proxyMeta.city,
-        }
+        proxyId: proxyMeta.id,
+        ip: proxyMeta.ip,
+        country: proxyMeta.country,
+        countryCode: proxyMeta.countryCode,
+        city: proxyMeta.city,
+      }
       : {}),
     userAgent: sessionBrowser.userAgent,
   })
