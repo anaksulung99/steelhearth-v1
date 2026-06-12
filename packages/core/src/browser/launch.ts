@@ -52,6 +52,13 @@ export interface SessionBrowser {
   timezone: string
   /** UA used in this session */
   userAgent: string
+  /** Additional for crawlee pool */
+  isMobile?: boolean
+  capabilities?: {
+    supportsWheel: boolean,
+    isMobile: boolean
+    isWebKit: boolean,
+  }
   close: () => Promise<void>
 }
 

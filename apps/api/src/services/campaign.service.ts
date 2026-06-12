@@ -147,11 +147,13 @@ export async function setCampaignAction(userId: string, id: string, action: "sta
   // Pause removes pending BullMQ jobs but keeps DB sessions QUEUED so start can re-enqueue them.
   if (action === "pause") {
     await removeQueuedSessionJobs(id)
+    await removePendingCampaignJobs(id)
   }
 
   // Stop cancels pending sessions and removes their BullMQ jobs.
   if (action === "stop") {
     await cancelQueuedSessions(id)
+    await removePendingCampaignJobs(id)
   }
 
   return updated
@@ -191,6 +193,16 @@ async function removeQueuedSessionJobs(campaignId: string, sessionIds?: string[]
   )
 }
 
+async function removePendingCampaignJobs(campaignId: string) {
+  const queue = getSessionQueue()
+  const jobs = await queue.getJobs(["waiting", "delayed", "prioritized"], 0, -1)
+  await Promise.all(
+    jobs
+      .filter((job) => job.data?.campaignId === campaignId)
+      .map((job) => job.remove().catch(() => {/* already processing */ })),
+  )
+}
+
 async function enqueueCampaignSessions(userId: string, campaignId: string) {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
@@ -198,6 +210,7 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
       userId: true,
       targetUrl: true,
       launcherType: true,
+      maxConcurrency: true,
       totalSessionsTarget: true,
       fingerprintProfileId: true,
       behaviourProfileId: true,
@@ -222,24 +235,6 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
     })
   }
 
-  let enqueued = 0
-  let failed = 0
-  for (const session of orphaned) {
-    try {
-      await enqueueSession({
-        sessionId: session.id,
-        campaignId,
-        launcherType: session.launcherType,
-        userId: campaign.userId,
-        attempt: 1
-      })
-      enqueued++
-    } catch (err) {
-      failed++
-      console.error(`[campaign] Failed to re-enqueue session ${session.id}:`, (err as Error).message)
-    }
-  }
-
   // Step 2: Create new sessions for remaining target slots
   const successCount = await prisma.browserSession.count({
     where: { campaignId, status: "SUCCESS" },
@@ -249,7 +244,7 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
   })
   const remaining = campaign.totalSessionsTarget - successCount - runningCount - orphaned.length
   for (let i = 0; i < remaining; i++) {
-    const session = await prisma.browserSession.create({
+    await prisma.browserSession.create({
       data: {
         campaignId,
         launcherType: campaign.launcherType,
@@ -259,8 +254,78 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
         behaviourProfileId: campaign.behaviourProfileId,
       },
     })
+  }
+
+  const { enqueued, failed } = await enqueueNextCampaignSessions(campaignId)
+
+  if (enqueued === 0 && failed > 0) {
+    throw conflict(`Failed to enqueue campaign sessions (${failed} failed)`)
+  }
+
+  console.log(`[campaign] ${campaignId}: enqueued ${enqueued} sessions (${failed} failed, max concurrency ${campaign.maxConcurrency})`)
+}
+
+async function countPendingQueueJobs(campaignId: string) {
+  const queue = getSessionQueue()
+  const jobs = await queue.getJobs(["waiting", "delayed", "prioritized"], 0, -1)
+  return jobs.filter((job) => job.data?.campaignId === campaignId).length
+}
+
+async function hasPendingQueueJob(sessionId: string) {
+  const queue = getSessionQueue()
+  const job = await Job.fromId(queue, `session-${sessionId}`)
+  if (!job) return false
+  const state = await job.getState()
+  return ["waiting", "delayed", "prioritized", "active"].includes(state)
+}
+
+export async function enqueueNextCampaignSessions(campaignId: string) {
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignId },
+    select: {
+      id: true,
+      userId: true,
+      status: true,
+      launcherType: true,
+      maxConcurrency: true,
+    },
+  })
+
+  if (!campaign || campaign.status !== "ACTIVE") {
+    return { enqueued: 0, failed: 0 }
+  }
+
+  const [runningCount, pendingQueueCount] = await Promise.all([
+    prisma.browserSession.count({ where: { campaignId, status: "RUNNING" } }),
+    countPendingQueueJobs(campaignId),
+  ])
+  const availableSlots = Math.max(0, campaign.maxConcurrency - runningCount - pendingQueueCount)
+  if (availableSlots <= 0) {
+    return { enqueued: 0, failed: 0 }
+  }
+
+  const queuedSessions = await prisma.browserSession.findMany({
+    where: { campaignId, status: "QUEUED" },
+    select: { id: true, launcherType: true },
+    orderBy: { createdAt: "asc" },
+    take: Math.max(availableSlots * 4, availableSlots),
+  })
+
+  let enqueued = 0
+  let failed = 0
+
+  for (const session of queuedSessions) {
+    if (enqueued >= availableSlots) break
+    if (await hasPendingQueueJob(session.id)) continue
+
     try {
-      await enqueueSession({ sessionId: session.id, campaignId, launcherType: campaign.launcherType, userId: campaign.userId, attempt: 1 })
+      await enqueueSession({
+        sessionId: session.id,
+        campaignId,
+        launcherType: session.launcherType ?? campaign.launcherType,
+        userId: campaign.userId,
+        attempt: 1,
+      })
       enqueued++
     } catch (err) {
       failed++
@@ -268,11 +333,7 @@ async function enqueueCampaignSessions(userId: string, campaignId: string) {
     }
   }
 
-  if (enqueued === 0 && failed > 0) {
-    throw conflict(`Failed to enqueue campaign sessions (${failed} failed)`)
-  }
-
-  console.log(`[campaign] ${campaignId}: enqueued ${enqueued} sessions (${failed} failed)`)
+  return { enqueued, failed }
 }
 
 // -----------------------------------------------------------------------

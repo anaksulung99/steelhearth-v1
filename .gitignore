@@ -51,3 +51,16 @@ certs/
 docs/
 *.turbo
 scripts/*
+steelhearth-02.zip
+
+# Sidecar bundles (generated, not committed)
+apps/desktop/resources/sidecar/*.cjs
+apps/desktop/resources/sidecar/*.wasm
+
+# Redis binaries (download separately, see resources/redis/README.md)
+apps/desktop/resources/redis/win32/
+apps/desktop/resources/redis/darwin/
+apps/desktop/resources/redis/linux/
+
+# Bundled app env (copy of .env for prod)
+apps/desktop/resources/app.env

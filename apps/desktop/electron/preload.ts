@@ -28,6 +28,7 @@ interface ElectronAPI {
   isElectron: boolean;
   testLocalFile: (filePath: string) => Promise<boolean>
   getAudioUrl: (fileName: string) => string
+  getSidecarStatus: () => Promise<{ redis: boolean; api: boolean; worker: boolean }>
 }
 
 const electronAPI: ElectronAPI = {
@@ -129,6 +130,10 @@ const electronAPI: ElectronAPI = {
   },
   getAudioUrl: (fileName: string): string => {
     return `local://music/${fileName}?t=${Date.now()}`;
+  },
+
+  getSidecarStatus: async () => {
+    return await ipcRenderer.invoke('get-sidecar-status')
   },
 };
 

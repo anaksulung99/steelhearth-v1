@@ -90,6 +90,7 @@ export interface Campaign {
   fingerprintProfileId: string | null
   behaviourProfileId: string | null
   totalSessionsTarget: number
+  maxConcurrency: number
   dailyLimit: number
   sessionsPerHour: number
   headless: boolean
@@ -137,6 +138,7 @@ export interface CreateCampaignDto {
   fingerprintProfileId?: string | null
   behaviourProfileId?: string | null
   totalSessionsTarget?: number
+  maxConcurrency?: number
   dailyLimit?: number
   sessionsPerHour?: number
   headless?: boolean

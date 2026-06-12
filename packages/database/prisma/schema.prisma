@@ -190,6 +190,7 @@ model Campaign {
   behaviourProfileId   String?
   totalSessionsTarget  Int            @default(0)
   dailyLimit           Int            @default(100)
+  maxConcurrency       Int            @default(5)
   sessionsPerHour      Int            @default(10)
   headless             Boolean        @default(true)
   browserEngine        BrowserEngine  @default(CHROMIUM)

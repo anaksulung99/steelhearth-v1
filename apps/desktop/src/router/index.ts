@@ -161,6 +161,12 @@ const routes: RouteRecordRaw[] = [
         name: "AuditLogs",
         component: () => import("../pages/app/audit-logs/Index.vue"),
         meta: { middleware: "auth", title: "Audit Logs" },
+      },
+      {
+        path: "settings",
+        name: "Settings",
+        component: () => import("../pages/app/settings/Index.vue"),
+        meta: { middleware: "auth", title: "Settings" },
       }
     ]
   },

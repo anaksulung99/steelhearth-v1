@@ -196,8 +196,6 @@ export async function processSession(
 
     const page = await sessionBrowser.context.newPage()
 
-
-
     await job.updateProgress(30)
     await notifySessionProgress(sessionId, campaignId, 30)
 
@@ -207,7 +205,22 @@ export async function processSession(
         simResult = await simulateBehaviour(page, campaign.targetUrl, referrer, cfg)
         break
       case "CRAWLEE":
-        const crawleeSimulation = new CrawleeHumanBehaviourSimulator(page, campaign.targetUrl, referrer, cfg)
+        const isMobile = campaign.fingerprintProfile?.deviceType === "MOBILE"
+        const isWebKit = campaign.browserEngine === "WEBKIT"
+        const supportsWheel = !isMobile
+        const crawleeSimulation = new CrawleeHumanBehaviourSimulator(
+          page,
+          campaign.targetUrl,
+          referrer,
+          cfg,
+          {
+            supportsWheel: supportsWheel,
+            isMobile: isMobile,
+            isWebKit: isWebKit,
+            isFirefox: campaign.browserEngine === 'FIREFOX',
+            isChromium: campaign.browserEngine === "CHROMIUM"
+          }
+        )
         simResult = await crawleeSimulation.simulateHumanBehaviour()
         break
       default:

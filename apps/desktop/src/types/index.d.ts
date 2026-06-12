@@ -37,6 +37,7 @@ declare global {
     isElectron: boolean;
     testLocalFile: (filePath: string) => Promise<boolean>
     getAudioUrl: (fileName: string) => string
+    getSidecarStatus: () => Promise<{ redis: boolean; api: boolean; worker: boolean }>
   }
   interface RetryOptions {
     maxRetries?: number;

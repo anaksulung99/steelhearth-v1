@@ -11,6 +11,7 @@ export type {
   DeviceType,
   OSName,
   BrowserName,
+  BrowserCapabilities
 } from "./utils/types.js"
 export {
   DEVICE_OS_MAP,

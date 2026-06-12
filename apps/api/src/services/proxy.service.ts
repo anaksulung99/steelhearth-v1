@@ -3,8 +3,8 @@ import type {
   CreateProxyGroupDto, UpdateProxyGroupDto,
   BulkImportProxyDto, UpdateProxyDto, QueryProxyDto,
 } from "@tb/contracts"
-import { checkProxy, checkProxies, resolveProxyStatus } from "@tb/core"
-import type { ProxyCheckResult } from "@tb/core"
+import { checkProxy, checkProxies, resolveProxyStatus } from "@tb/core/proxy"
+import type { ProxyCheckResult } from "@tb/core/proxy"
 import { notFound } from "../helpers/errors.js"
 import { clean } from "../helpers/prisma.js"
 import { parsePagination } from "../helpers/pagination.js"

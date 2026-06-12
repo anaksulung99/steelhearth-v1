@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify"
 import { z } from "zod"
 import { prisma } from "@tb/database"
 import { publishSessionEvent, publishCampaignStatus, publish } from "../ws/publisher.js"
+import { enqueueNextCampaignSessions } from "../services/campaign.service.js"
 
 const SessionNotifySchema = z.object({
   sessionId: z.string(),
@@ -56,6 +57,7 @@ export async function internalRoutes(app: FastifyInstance) {
     })
 
     if (status && (TERMINAL as readonly string[]).includes(status)) {
+      await enqueueNextCampaignSessions(campaignId)
       await checkCampaignCompletion(campaignId)
     }
 

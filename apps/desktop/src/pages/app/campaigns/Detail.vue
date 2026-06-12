@@ -27,8 +27,12 @@ const campaign = computed(() => campaignStore.current);
 const analytics = computed(() => analyticsStore.campaignAnalytics[id]);
 const canStart = computed(() => {
   if (!campaign.value) return false;
-  if (["DRAFT", "PAUSED", "STOPPED", "FAILED"].includes(campaign.value.status)) return true;
-  return campaign.value.status === "ACTIVE" && (analytics.value?.totalSessions ?? 0) === 0;
+  if (["DRAFT", "PAUSED", "STOPPED", "FAILED"].includes(campaign.value.status))
+    return true;
+  return (
+    campaign.value.status === "ACTIVE" &&
+    (analytics.value?.totalSessions ?? 0) === 0
+  );
 });
 
 // Running sessions for this campaign from WS progress map
@@ -95,19 +99,19 @@ async function handleStart() {
 
 // ── Status colours ────────────────────────────────────────────────────────────
 const statusColor: Record<string, string> = {
-  DRAFT:     "bg-muted text-muted-foreground",
-  ACTIVE:    "bg-emerald-500/15 text-emerald-600",
-  PAUSED:    "bg-yellow-500/15 text-yellow-600",
-  STOPPED:   "bg-neutral-500/15 text-neutral-600",
+  DRAFT: "bg-muted text-muted-foreground",
+  ACTIVE: "bg-emerald-500/15 text-emerald-600",
+  PAUSED: "bg-yellow-500/15 text-yellow-600",
+  STOPPED: "bg-neutral-500/15 text-neutral-600",
   COMPLETED: "bg-blue-500/15 text-blue-600",
-  FAILED:    "bg-red-500/15 text-red-600",
+  FAILED: "bg-red-500/15 text-red-600",
 };
 
 const sessionStatusColor: Record<string, string> = {
-  QUEUED:    "bg-muted text-muted-foreground",
-  RUNNING:   "bg-blue-500/15 text-blue-600",
-  SUCCESS:   "bg-emerald-500/15 text-emerald-600",
-  FAILED:    "bg-red-500/15 text-red-600",
+  QUEUED: "bg-muted text-muted-foreground",
+  RUNNING: "bg-blue-500/15 text-blue-600",
+  SUCCESS: "bg-emerald-500/15 text-emerald-600",
+  FAILED: "bg-red-500/15 text-red-600",
   CANCELLED: "bg-neutral-500/15 text-neutral-600",
 };
 
@@ -293,6 +297,10 @@ async function handleEdit() {
           <h2 class="font-semibold text-sm border-b pb-2">Configuration</h2>
           <dl class="space-y-2 text-sm">
             <div class="flex justify-between">
+              <dt class="text-muted-foreground">Launcher Type</dt>
+              <dd class="font-medium">{{ campaign.launcherType }}</dd>
+            </div>
+            <div class="flex justify-between">
               <dt class="text-muted-foreground">Browser Engine</dt>
               <dd class="font-medium">{{ campaign.browserEngine }}</dd>
             </div>
@@ -305,6 +313,10 @@ async function handleEdit() {
             <div class="flex justify-between">
               <dt class="text-muted-foreground">Total Sessions</dt>
               <dd class="font-medium">{{ campaign.totalSessionsTarget }}</dd>
+            </div>
+            <div class="flex justify-between">
+              <dt class="text-muted-foreground">Max Concurrency</dt>
+              <dd class="font-medium">{{ campaign.maxConcurrency }}</dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-muted-foreground">Daily Limit</dt>
@@ -361,7 +373,9 @@ async function handleEdit() {
           <span class="font-semibold text-sm flex items-center gap-2">
             <Icon icon="material-symbols:web-stories-outline" class="size-4" />
             Sessions
-            <span class="text-xs font-normal text-muted-foreground">({{ sessionsTotal }})</span>
+            <span class="text-xs font-normal text-muted-foreground"
+              >({{ sessionsTotal }})</span
+            >
           </span>
           <Icon
             icon="material-symbols:expand-more"
@@ -376,13 +390,24 @@ async function handleEdit() {
             <span class="text-xs text-muted-foreground">Filter:</span>
             <div class="flex gap-1">
               <button
-                v-for="s in ['', 'QUEUED', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED']"
+                v-for="s in [
+                  '',
+                  'QUEUED',
+                  'RUNNING',
+                  'SUCCESS',
+                  'FAILED',
+                  'CANCELLED',
+                ]"
                 :key="s"
                 class="rounded-full px-2.5 py-0.5 text-xs border transition-colors"
-                :class="sessionsFilter === s ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'"
+                :class="
+                  sessionsFilter === s
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'hover:bg-muted'
+                "
                 @click="sessionsFilter = s"
               >
-                {{ s || 'All' }}
+                {{ s || "All" }}
               </button>
             </div>
             <button
@@ -390,44 +415,89 @@ async function handleEdit() {
               title="Refresh"
               @click="loadSessions(sessionsPage)"
             >
-              <Icon icon="material-symbols:refresh" class="size-4" :class="sessionsLoading ? 'animate-spin' : ''" />
+              <Icon
+                icon="material-symbols:refresh"
+                class="size-4"
+                :class="sessionsLoading ? 'animate-spin' : ''"
+              />
             </button>
           </div>
 
           <!-- Table -->
-          <div v-if="sessionsLoading && !sessions.length" class="p-6 text-center text-sm text-muted-foreground">
+          <div
+            v-if="sessionsLoading && !sessions.length"
+            class="p-6 text-center text-sm text-muted-foreground"
+          >
             Loading...
           </div>
-          <div v-else-if="!sessions.length" class="p-6 text-center text-sm text-muted-foreground">
+          <div
+            v-else-if="!sessions.length"
+            class="p-6 text-center text-sm text-muted-foreground"
+          >
             No sessions yet.
           </div>
           <table v-else class="w-full text-sm">
             <thead class="border-t border-b bg-muted/40">
               <tr>
-                <th class="px-4 py-2 text-left font-medium text-muted-foreground text-xs">Session ID</th>
-                <th class="px-4 py-2 text-left font-medium text-muted-foreground text-xs">Status</th>
-                <th class="px-4 py-2 text-left font-medium text-muted-foreground text-xs">Duration</th>
-                <th class="px-4 py-2 text-left font-medium text-muted-foreground text-xs">Proxy</th>
-                <th class="px-4 py-2 text-left font-medium text-muted-foreground text-xs">Started</th>
-                <th class="px-4 py-2 text-right font-medium text-muted-foreground text-xs">Actions</th>
+                <th
+                  class="px-4 py-2 text-left font-medium text-muted-foreground text-xs"
+                >
+                  Session ID
+                </th>
+                <th
+                  class="px-4 py-2 text-left font-medium text-muted-foreground text-xs"
+                >
+                  Status
+                </th>
+                <th
+                  class="px-4 py-2 text-left font-medium text-muted-foreground text-xs"
+                >
+                  Duration
+                </th>
+                <th
+                  class="px-4 py-2 text-left font-medium text-muted-foreground text-xs"
+                >
+                  Proxy
+                </th>
+                <th
+                  class="px-4 py-2 text-left font-medium text-muted-foreground text-xs"
+                >
+                  Started
+                </th>
+                <th
+                  class="px-4 py-2 text-right font-medium text-muted-foreground text-xs"
+                >
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody class="divide-y">
               <tr v-for="s in sessions" :key="s.id" class="hover:bg-muted/20">
-                <td class="px-4 py-2 font-mono text-xs text-muted-foreground">{{ s.id.slice(-8) }}</td>
+                <td class="px-4 py-2 font-mono text-xs text-muted-foreground">
+                  {{ s.id.slice(-8) }}
+                </td>
                 <td class="px-4 py-2">
-                  <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="sessionStatusColor[s.status]">
+                  <span
+                    class="rounded-full px-2 py-0.5 text-xs font-medium"
+                    :class="sessionStatusColor[s.status]"
+                  >
                     {{ s.status }}
                   </span>
                 </td>
                 <td class="px-4 py-2 text-xs text-muted-foreground">
-                  {{ s.durationMs ? `${(s.durationMs / 1000).toFixed(1)}s` : '—' }}
+                  {{
+                    s.durationMs ? `${(s.durationMs / 1000).toFixed(1)}s` : "—"
+                  }}
                 </td>
                 <td class="px-4 py-2 text-xs text-muted-foreground">
-                  {{ s.proxy ? `${s.proxy.host}:${s.proxy.port}` : '—' }}
+                  {{ s.proxy ? `${s.proxy.host}:${s.proxy.port}` : "—" }}
                 </td>
                 <td class="px-4 py-2 text-xs text-muted-foreground">
-                  {{ s.startedAt ? new Date(s.startedAt).toLocaleTimeString() : '—' }}
+                  {{
+                    s.startedAt
+                      ? new Date(s.startedAt).toLocaleTimeString()
+                      : "—"
+                  }}
                 </td>
                 <td class="px-4 py-2 text-right">
                   <button
@@ -438,9 +508,17 @@ async function handleEdit() {
                     @click="cancelSession(s.id)"
                   >
                     <Icon
-                      :icon="cancellingId === s.id ? 'material-symbols:sync' : 'material-symbols:cancel-outline'"
+                      :icon="
+                        cancellingId === s.id
+                          ? 'material-symbols:sync'
+                          : 'material-symbols:cancel-outline'
+                      "
                       class="size-4"
-                      :class="cancellingId === s.id ? 'animate-spin' : 'text-destructive'"
+                      :class="
+                        cancellingId === s.id
+                          ? 'animate-spin'
+                          : 'text-destructive'
+                      "
                     />
                   </button>
                 </td>
@@ -449,20 +527,29 @@ async function handleEdit() {
           </table>
 
           <!-- Pagination -->
-          <div v-if="sessionsTotal > 20" class="flex items-center justify-between px-4 py-2 border-t bg-muted/20">
-            <span class="text-xs text-muted-foreground">{{ sessionsTotal }} total</span>
+          <div
+            v-if="sessionsTotal > 20"
+            class="flex items-center justify-between px-4 py-2 border-t bg-muted/20"
+          >
+            <span class="text-xs text-muted-foreground"
+              >{{ sessionsTotal }} total</span
+            >
             <div class="flex gap-1">
               <button
                 :disabled="sessionsPage <= 1"
                 class="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40"
                 @click="loadSessions(sessionsPage - 1)"
-              >Prev</button>
+              >
+                Prev
+              </button>
               <span class="px-2 py-1 text-xs">{{ sessionsPage }}</span>
               <button
                 :disabled="sessionsPage * 20 >= sessionsTotal"
                 class="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40"
                 @click="loadSessions(sessionsPage + 1)"
-              >Next</button>
+              >
+                Next
+              </button>
             </div>
           </div>
         </div>

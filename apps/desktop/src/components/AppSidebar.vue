@@ -82,6 +82,11 @@ const navSecondary: AppNavMain[] = [
       },
     ],
   },
+  {
+    title: "Settings",
+    url: "/app/settings",
+    icon: "material-symbols:settings-outline",
+  },
 ];
 
 const navMainItems = computed(() => {

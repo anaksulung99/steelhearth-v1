@@ -3,17 +3,31 @@
   $schema: "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   appId: "steelheart-she-s-gone",
   asar: true,
-  productName: "Steelheart She’s Gone",
+  productName: "Steelheart She's Gone",
   icon: "public/logo.png",
   directories: {
     output: "release/${version}",
   },
-  files: ["dist", "dist-electron", "!resources/**/*"],
+  files: [
+    "dist",
+    "dist-electron",
+    "!resources/**/*",
+  ],
+  // Sidecar bundles and app env — included for all platforms
   extraResources: [
     {
-      from: "resources",
-      to: "resources",
+      from: "resources/sidecar",
+      to: "sidecar",
       filter: ["**/*"],
+    },
+    {
+      from: "resources/app.env",
+      to: "app.env",
+    },
+    {
+      from: "resources",
+      to: ".",
+      filter: ["package.json", "browsers.json", "cli.js"],
     },
   ],
   mac: {
@@ -21,9 +35,23 @@
     artifactName: "${productName}-Mac-${version}-Installer.${ext}",
     extraResources: [
       {
-        from: "resources",
-        to: "Resources/resources",
+        from: "resources/sidecar",
+        to: "sidecar",
         filter: ["**/*"],
+      },
+      {
+        from: "resources/redis/darwin",
+        to: "redis/darwin",
+        filter: ["**/*"],
+      },
+      {
+        from: "resources/app.env",
+        to: "app.env",
+      },
+      {
+        from: "resources",
+        to: ".",
+        filter: ["package.json", "browsers.json", "cli.js"],
       },
     ],
   },
@@ -36,6 +64,27 @@
       },
     ],
     artifactName: "${productName}-Windows-${version}-Setup.${ext}",
+    extraResources: [
+      {
+        from: "resources/sidecar",
+        to: "sidecar",
+        filter: ["**/*"],
+      },
+      {
+        from: "resources/redis/win32",
+        to: "redis/win32",
+        filter: ["**/*"],
+      },
+      {
+        from: "resources/app.env",
+        to: "app.env",
+      },
+      {
+        from: "resources",
+        to: ".",
+        filter: ["package.json", "browsers.json", "cli.js"],
+      },
+    ],
   },
   nsis: {
     oneClick: false,
@@ -49,5 +98,26 @@
   linux: {
     target: ["AppImage"],
     artifactName: "${productName}-Linux-${version}.${ext}",
+    extraResources: [
+      {
+        from: "resources/sidecar",
+        to: "sidecar",
+        filter: ["**/*"],
+      },
+      {
+        from: "resources/redis/linux",
+        to: "redis/linux",
+        filter: ["**/*"],
+      },
+      {
+        from: "resources/app.env",
+        to: "app.env",
+      },
+      {
+        from: "resources",
+        to: ".",
+        filter: ["package.json", "browsers.json", "cli.js"],
+      },
+    ],
   },
 }

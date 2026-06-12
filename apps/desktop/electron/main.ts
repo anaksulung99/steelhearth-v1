@@ -6,6 +6,7 @@ import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
 import { execFile } from 'node:child_process'
+import { startSidecars, stopSidecars, getSidecarStatus } from './sidecar.js'
 
 createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -307,7 +308,45 @@ const serveLocalFile = async (request: Request): Promise<Response> => {
     return new Response('Internal server error', { status: 500 });
   }
 };
+// Load .env into process.env so sidecars inherit DB_URL, API keys, etc.
+function loadAppEnv() {
+  // In prod: reads from bundled app.env in extraResources
+  // In dev:  reads from repo root .env (handled by API/worker's own loadEnv())
+  const envFile = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.env')
+    : path.join(app.getAppPath(), '..', '..', '..', '.env')
+
+  if (!fs.existsSync(envFile)) return
+  const raw = fs.readFileSync(envFile, 'utf8')
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const idx = trimmed.indexOf('=')
+    if (idx <= 0) continue
+    const key = trimmed.slice(0, idx).trim()
+    let value = trimmed.slice(idx + 1).trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    if (process.env[key] === undefined) process.env[key] = value
+  }
+}
+
+ipcMain.handle('get-sidecar-status', () => getSidecarStatus())
+
 app.whenReady().then(async () => {
-  protocol.handle('local', serveLocalFile);
+  loadAppEnv()
+  protocol.handle('local', serveLocalFile)
+
+  try {
+    await startSidecars()
+  } catch (err) {
+    console.error('[main] Failed to start sidecars:', (err as Error).message)
+  }
+
   createWindow()
+})
+
+app.on('before-quit', async () => {
+  await stopSidecars()
 })

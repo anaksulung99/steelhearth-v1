@@ -34,7 +34,9 @@ export class CrawleeBrowserPool {
   async launchBrowser(): Promise<SessionBrowser> {
     const hint = this.options.fingerprint as FingerprintHint
 
-    const isMobile = hint?.isMobile ?? hint?.deviceType === "MOBILE"
+    const isMobile = hint?.isMobile || hint?.deviceType === "MOBILE" || this.isMobileDeviceFromFingerprint(hint);
+    const isWebKit = this.options.engine === "WEBKIT"
+
     const browserVersion = hint.browserVersion;
 
     const fingerprint = this.fingerprintGenerator.getFingerprint({
@@ -59,6 +61,22 @@ export class CrawleeBrowserPool {
       args: this.options.engine === "CHROMIUM" ? this.getBrowserArgs(this.options.engine, hint) : [],
     });
 
+    const extraHTTPHeaders: Record<string, string> = {
+      "Accept-Language": fingerprint.headers["accept-language"] ?? "en-US,en;q=0.9",
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+    }
+
+    if (this.options.engine === "CHROMIUM") {
+      const majorVersion = browserVersion?.split('.')[0] ?? "120"
+      extraHTTPHeaders['Sec-Ch-Ua'] = `"Google Chrome";v="${majorVersion}", "Chromium";v="${majorVersion}", "Not?A_Brand";v="24"`
+      extraHTTPHeaders['Sec-Ch-Ua-Mobile'] = isMobile ? '?1' : '?0'
+      extraHTTPHeaders['Sec-Ch-Ua-Platform'] = this.getSecChUaPlatform(hint.osName as OSName)
+    }
+
     const context = await browser.newContext({
       viewport,
       userAgent,
@@ -66,21 +84,11 @@ export class CrawleeBrowserPool {
       hasTouch: isMobile,
       locale: hint.language ?? "en-US",
       timezoneId: timezone,
-      extraHTTPHeaders: {
-        "Accept-Language": fingerprint.headers["accept-language"] ?? "en-US,en;q=0.9",
-        'Sec-Ch-Ua': `"Google Chrome";v="${browserVersion?.split('.')[0]}", "Chromium";v="${browserVersion?.split('.')[0]}", "Not?A_Brand";v="24"`,
-        'Sec-Ch-Ua-Mobile': isMobile ? '?1' : '?0',
-        'Sec-Ch-Ua-Platform': this.getSecChUaPlatform(hint.osName as OSName),
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
-      },
+      extraHTTPHeaders,
       ...(this.options.proxy ? { proxy: this.options.proxy } : {}),
     });
 
-    await this.fingerprintInjector.attachFingerprintToPlaywright(context, fingerprint);
+    await this.fingerprintInjector.attachFingerprintToPlaywright(context, fingerprint).catch(() => { });
 
     await context.addInitScript(this.getClientHintsScript(hint, this.options.engine));
 
@@ -91,12 +99,19 @@ export class CrawleeBrowserPool {
     }
 
     const sessionId = `session_${Date.now()}_${Math.random()}`;
+    const supportsWheel = !isMobile
 
     const session: SessionBrowser = {
       browser,
       context,
       timezone,
       userAgent,
+      isMobile,
+      capabilities: {
+        supportsWheel,
+        isMobile,
+        isWebKit,
+      },
       close: async () => {
         await page.close().catch(() => { });
         await context.close().catch(() => { });
@@ -111,92 +126,106 @@ export class CrawleeBrowserPool {
 
   private getClientHintsScript(hint: FingerprintHint, engine: BrowserEngine): string {
     const isMobile = hint.isMobile ?? hint.deviceType === "MOBILE"
-    const osPlatform = this.resolveOs()
     const browserVersion = hint.browserVersion;
     const chromeVersion = browserVersion?.split('.')[0];
     const browsserName = hint.browserName ?? "CHROME"
     const osName = hint.osName ?? "WINDOWS"
+    const osPlatform = this.getSecChUaPlatform(hint.osName as OSName).replace(/"/g, "")
+    const userAgentDataScript = engine === "CHROMIUM" ? `
+      try {
+        Object.defineProperty(navigator, 'userAgentData', {
+          get: () => ({
+            brands: [
+              { brand: 'Google Chrome', version: '${chromeVersion ?? "120"}' },
+              { brand: 'Chromium', version: '${chromeVersion ?? "120"}' },
+              { brand: 'Not?A_Brand', version: '24' }
+            ],
+            mobile: ${isMobile},
+            platform: '${osPlatform}',
+            getHighEntropyValues: async (hints) => {
+              const result = {};
+              if (hints.includes('architecture')) result.architecture = 'x86';
+              if (hints.includes('model')) result.model = '';
+              if (hints.includes('platformVersion')) result.platformVersion = '${hint.osVersion ?? ""}';
+              if (hints.includes('uaFullVersion')) result.uaFullVersion = '${browserVersion ?? chromeVersion ?? "120"}';
+              if (hints.includes('bitness')) result.bitness = '64';
+              if (hints.includes('fullVersionList')) result.fullVersionList = [];
+              if (hints.includes('wow64')) result.wow64 = false;
+              return result;
+            }
+          }),
+          configurable: true
+        });
+      } catch(e) {}
+    ` : ""
 
     return `
-      // Override navigator properties
-      Object.defineProperty(navigator, 'userAgentData', {
-        get: () => ({
-          brands: [
-            { brand: 'Google Chrome', version: '${chromeVersion}' },
-            { brand: 'Chromium', version: '${chromeVersion}' },
-            { brand: 'Not?A_Brand', version: '24' }
-          ],
-          mobile: ${isMobile},
-          platform: '${osPlatform}',
-          getHighEntropyValues: async (hints) => {
-            const result = {};
-            if (hints.includes('architecture')) result.architecture = 'x86';
-            if (hints.includes('model')) result.model = '';
-            if (hints.includes('platformVersion')) result.platformVersion = '${hint.osVersion}';
-            if (hints.includes('uaFullVersion')) result.uaFullVersion = '${browserVersion}.0.0.0';
-            if (hints.includes('bitness')) result.bitness = '64';
-            if (hints.includes('fullVersionList')) result.fullVersionList = [];
-            if (hints.includes('wow64')) result.wow64 = false;
-            return result;
-          }
-        }),
-        configurable: true
-      });
+      ${userAgentDataScript}
 
       // Override webdriver
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      delete Object.getPrototypeOf(navigator).webdriver;
+      try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined, configurable: true }); } catch(e) {}
+      try { delete Object.getPrototypeOf(navigator).webdriver; } catch(e) {}
 
       // Override plugins
-      Object.defineProperty(navigator, 'plugins', {
-        get: () => {
-          const plugins = [
-            { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
-            { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
-            { name: 'Native Client', filename: 'internal-nacl-plugin' }
-          ];
-          plugins.length = plugins.length;
-          plugins.item = (i) => plugins[i];
-          plugins.namedItem = (name) => plugins.find(p => p.name === name);
-          return plugins;
-        }
-      });
+      try {
+        Object.defineProperty(navigator, 'plugins', {
+          get: () => {
+            const plugins = [
+              { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer' },
+              { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+              { name: 'Native Client', filename: 'internal-nacl-plugin' }
+            ];
+            plugins.item = (i) => plugins[i];
+            plugins.namedItem = (name) => plugins.find(p => p.name === name);
+            return plugins;
+          },
+          configurable: true
+        });
+      } catch(e) {}
 
       // Override languages
-      Object.defineProperty(navigator, 'languages', { get: () => ['${hint.locale}', 'en'] });
+      try { Object.defineProperty(navigator, 'languages', { get: () => ['${hint.locale ?? hint.language ?? "en-US"}', 'en'], configurable: true }); } catch(e) {}
       
       // Override hardware concurrency
-      Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+      try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8, configurable: true }); } catch(e) {}
       
       // Override device memory
-      Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+      try { Object.defineProperty(navigator, 'deviceMemory', { get: () => 8, configurable: true }); } catch(e) {}
       
       // Override WebGL vendor
-      const webglVendor = ${JSON.stringify(getWebGLVendor(engine, osName as OSName, browsserName as BrowserName))};
-      const getParameter = WebGLRenderingContext.prototype.getParameter;
-      WebGLRenderingContext.prototype.getParameter = function(parameter) {
-        if (parameter === 37445) return webglVendor.vendor;
-        if (parameter === 37446) return webglVendor.renderer;
-        return getParameter(parameter);
-      };
+      try {
+        if (typeof WebGLRenderingContext !== 'undefined') {
+          const webglVendor = ${JSON.stringify(getWebGLVendor(engine, osName as OSName, browsserName as BrowserName))};
+          const getParameter = WebGLRenderingContext.prototype.getParameter;
+          WebGLRenderingContext.prototype.getParameter = function(parameter) {
+            if (parameter === 37445) return webglVendor.vendor;
+            if (parameter === 37446) return webglVendor.renderer;
+            return getParameter.call(this, parameter);
+          };
+        }
+      } catch(e) {}
 
       // Canvas fingerprint noise
-      const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-      HTMLCanvasElement.prototype.toDataURL = function(type, quality) {
-        if (this.width > 0 && this.height > 0) {
-          const ctx = this.getContext('2d');
-          if (ctx) {
-            const imageData = ctx.getImageData(0, 0, this.width, this.height);
-            for (let i = 0; i < imageData.data.length; i += 4) {
-              if (Math.random() < 0.01) {
-                imageData.data[i] = imageData.data[i] ^ (Math.random() * 4);
+      try {
+        const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL = function(type, quality) {
+          try {
+            if (this.width > 0 && this.height > 0) {
+              const ctx = this.getContext('2d');
+              if (ctx) {
+                const imageData = ctx.getImageData(0, 0, this.width, this.height);
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                  if (Math.random() < 0.01) {
+                    imageData.data[i] = imageData.data[i] ^ (Math.random() * 4);
+                  }
+                }
+                ctx.putImageData(imageData, 0, 0);
               }
             }
-            ctx.putImageData(imageData, 0, 0);
-          }
-        }
-        return originalToDataURL.call(this, type, quality);
-      };
+          } catch(e) {}
+          return originalToDataURL.call(this, type, quality);
+        };
+      } catch(e) {}
     `;
   }
 
@@ -306,6 +335,11 @@ export class CrawleeBrowserPool {
     }
   }
 
+  private isMobileDeviceFromFingerprint(fingerprint: any): boolean {
+    return fingerprint?.navigator?.userAgent?.includes('Mobile') ||
+      fingerprint?.navigator?.userAgent?.includes('Android') ||
+      fingerprint?.navigator?.userAgent?.includes('iPhone');
+  }
 
   async closeAll(): Promise<void> {
     const closePromises = Array.from(this.activeSessions.values()).map(s => s.close());

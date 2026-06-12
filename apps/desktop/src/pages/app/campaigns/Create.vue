@@ -28,6 +28,7 @@ const form = reactive<CreateCampaignDto>({
   behaviourProfileId: undefined,
   proxyGroupIds: [],
   totalSessionsTarget: 100,
+  maxConcurrency: 5,
   dailyLimit: 20,
   sessionsPerHour: 5,
   headless: true,
@@ -206,7 +207,7 @@ async function submit() {
       <!-- Session Settings -->
       <div class="rounded-lg border bg-card p-4 space-y-4">
         <h2 class="font-semibold text-sm">Session Settings</h2>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-4 gap-4">
           <div class="space-y-1">
             <Label class="text-sm font-medium">Total Sessions</Label>
             <Input
@@ -231,6 +232,16 @@ async function submit() {
             <Label class="text-sm font-medium">Sessions/Hour</Label>
             <Input
               v-model.number="form.sessionsPerHour"
+              type="number"
+              min="1"
+              class="bg-input"
+              :disabled="submitting"
+            />
+          </div>
+          <div class="space-y-1">
+            <Label class="text-sm font-medium">Max Concurrency</Label>
+            <Input
+              v-model.number="form.maxConcurrency"
               type="number"
               min="1"
               class="bg-input"

@@ -5,6 +5,14 @@ export type BrowserName =
   | "CHROME" | "FIREFOX" | "SAFARI" | "EDGE"
   | "CHROME_MOBILE" | "SAFARI_MOBILE" | "FIREFOX_MOBILE";
 
+export interface BrowserCapabilities {
+  supportsWheel: boolean;
+  isMobile: boolean;
+  isWebKit: boolean;
+  isFirefox: boolean;
+  isChromium: boolean;
+}
+
 export const DEVICE_OS_MAP: Record<DeviceType, OSName[]> = {
   DESKTOP: ["WINDOWS", "LINUX", "MACOS"],
   MOBILE: ["ANDROID", "IOS"],

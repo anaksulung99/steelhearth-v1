@@ -1,5 +1,6 @@
-import type { Page } from 'playwright';
+import type { Page, ElementHandle } from 'playwright';
 import type { BehaviourConfig, SimulateResult, SimulateEvent, ClickSelector } from "./types.js"
+import type { BrowserCapabilities } from "../utils/types.js"
 
 type SimulateDwellResult = "NATURAL_SCROLL" | "INTERNAL_NAVIGATION" | "MOUSE_MOVEMENT" | "DEFAUL"
 
@@ -7,16 +8,20 @@ export class CrawleeHumanBehaviourSimulator {
   private config: BehaviourConfig;
   private targetUrl: string
   private page: Page
+  private capabilities: BrowserCapabilities | null = null;
   referrer: string | null
 
   constructor(
     page: Page,
     targetUrl: string,
     referrer: string | null,
-    cfg: BehaviourConfig,) {
+    cfg: BehaviourConfig,
+    capabilities?: BrowserCapabilities
+  ) {
     this.page = page
     this.targetUrl = targetUrl
     this.referrer = referrer
+    this.capabilities = capabilities || null;
     this.config = {
       ...cfg,
       clickProbability: 0.3,
@@ -24,7 +29,8 @@ export class CrawleeHumanBehaviourSimulator {
       typingSpeedMin: 50,
       typingSpeedMax: 150,
     };
-
+    this.page.setDefaultTimeout(60000);
+    this.page.setDefaultNavigationTimeout(60000);
   }
 
   private random(min: number, max: number): number {
@@ -35,9 +41,27 @@ export class CrawleeHumanBehaviourSimulator {
     await new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  private isNavigationRace(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error)
+    return message.includes("Execution context was destroyed")
+      || message.includes("Cannot find context")
+      || message.includes("Target closed")
+      || message.includes("Frame was detached")
+  }
+
+  private async queryAllSafe(page: Page, selector: string): Promise<ElementHandle[]> {
+    try {
+      return await page.$$(selector)
+    } catch (error) {
+      if (this.isNavigationRace(error)) return []
+      throw error
+    }
+  }
+
   async simulateHumanBehaviour(): Promise<SimulateResult> {
     const events: SimulateEvent[] = []
     const startMs = Date.now()
+
     let pagesVisited = 0
 
     let targetOrigin = "http://localhost"
@@ -58,11 +82,27 @@ export class CrawleeHumanBehaviourSimulator {
     pagesVisited++
     events.push("NAVIGATE")
 
+    let capabilities = this.capabilities;
+    if (!capabilities) {
+      capabilities = await this.detectBrowserCapabilities(this.page);
+    }
+
     await this.waitForPageSettle(this.page)
+    await this.waitForOverlaysToDisappear(this.page).catch((error) => {
+      if (!this.isNavigationRace(error)) throw error
+    });
+    await this.handleNotifications(this.page).catch((error) => {
+      if (!this.isNavigationRace(error)) throw error
+    });
     await this.sleep(this.random(500, 1500));
 
     // ── 2. Initial mouse movement ──────────────────────────────────────────────
     await this.simulateNaturalScroll(this.page);
+    if (capabilities.isMobile) {
+      await this.simulateMobileBehaviour();
+    } else {
+      await this.simulateDesktopBehaviour();
+    }
     events.push("MOUSE_MOVE")
 
     // ── 3. Scroll ─────────────────────────────────────────────────────────────
@@ -127,74 +167,69 @@ export class CrawleeHumanBehaviourSimulator {
   }
 
   private async simulateNaturalScroll(page: Page): Promise<void> {
-    await this.waitForPageSettle(page);
-
-    const scrollSteps = this.random(this.config.minScrollCount, this.config.maxScrollCount);
-
-    for (let i = 0; i < scrollSteps; i++) {
-      const direction = Math.random() > 0.8 ? -1 : 1;
-      const amount = this.random(80, 300) * direction;
-
-      await page.evaluate((scrollAmount) => {
-        window.scrollBy({ top: scrollAmount, behavior: 'smooth' });
-      }, amount);
-
-      await this.sleep(this.random(this.config.scrollSpeedMin, this.config.scrollSpeedMax));
-
-      if (Math.random() < 0.2) {
-        await this.sleep(this.random(500, 1500));
-      }
+    let capabilities = this.capabilities;
+    if (!capabilities) {
+      capabilities = await this.detectBrowserCapabilities(this.page);
     }
+
+    if (!capabilities.supportsWheel) {
+      await this.simulateScrollWithJS(page);
+      return;
+    }
+
+    await this.simulateScrollWithWheel(page);
   }
 
   private async simulateMouseMovement(page: Page): Promise<void> {
-    const viewport = page.viewportSize();
-    if (!viewport) return;
+    let capabilities = this.capabilities;
+    if (!capabilities) {
+      capabilities = await this.detectBrowserCapabilities(this.page);
+    }
 
-    const startX = this.random(50, viewport.width - 50);
-    const startY = this.random(50, viewport.height - 50);
-    const endX = this.random(50, viewport.width - 50);
-    const endY = this.random(50, viewport.height - 50);
+    if (capabilities.isMobile) {
+      await this.simulateTouchMovement(page);
+      return;
+    }
 
-    await page.mouse.move(startX, startY, { steps: this.random(5, 10) });
-    await this.sleep(this.random(50, 150));
-
-    await page.mouse.move(endX, endY, { steps: this.random(10, 20) });
-    await this.sleep(this.random(100, 300));
+    await this.simulateMouseMovementDesktop(page);
   }
 
   private async simulateRandomClick(page: Page): Promise<boolean> {
     try {
       await this.waitForPageSettle(page);
 
-      const clickableElements = await page.$$('a, button, [role="button"], input[type="submit"]');
+      await this.waitForOverlaysToDisappear(page);
+
+      const clickableElements = await this.queryAllSafe(page, 'a, button, [role="button"], input[type="submit"]');
       if (clickableElements.length === 0) return false;
 
-      const target = clickableElements[Math.floor(Math.random() * clickableElements.length)];
-      if (!target) return false
+      const validElements = [];
+      for (const element of clickableElements) {
+        try {
+          const isVisible = await element.isVisible().catch(() => false);
+          if (!isVisible) continue;
 
-      const isVisible = await target.isVisible();
-
-      if (isVisible) {
-        await target.scrollIntoViewIfNeeded();
-        await this.sleep(this.random(100, 300));
-
-        const box = await target.boundingBox();
-        if (box) {
-          const clickX = box.x + box.width / 2 + this.random(-5, 5);
-          const clickY = box.y + box.height / 2 + this.random(-5, 5);
-          await page.mouse.move(clickX, clickY, { steps: this.random(5, 15) });
-          await this.sleep(this.random(50, 100));
+          const isIntercepted = await this.isElementIntercepted(element);
+          if (!isIntercepted) {
+            validElements.push(element);
+          }
+        } catch (error) {
+          if (!this.isNavigationRace(error)) throw error
         }
-
-        await target.click({ delay: this.random(30, 120) });
-
-        await this.waitForPageSettle(page);
-
-        return true
       }
 
-      return false
+      if (validElements.length === 0) return false;
+
+      const target = validElements[Math.floor(Math.random() * validElements.length)];
+      if (!target) return false;
+
+      const clicked = await this.safeClick(target);
+      if (clicked) {
+        await this.waitForPageSettle(page);
+        return true;
+      }
+
+      return false;
     } catch (error) {
       console.log(error)
       return false
@@ -253,52 +288,87 @@ export class CrawleeHumanBehaviourSimulator {
       const origin = new URL(currentUrl).origin;
 
       await this.waitForPageSettle(page);
+      await this.waitForOverlaysToDisappear(page);
 
-      const links = await this.page.$$(`a[href^="/"], a[href^="${origin}"]`);
+      // Filter links yang valid dan tidak terhalang
+      const links = await this.queryAllSafe(this.page, `a[href^="/"], a[href^="${origin}"]`);
       if (links.length === 0) return;
 
-      const targetLink = links[Math.floor(Math.random() * links.length)];
+      const validLinks = [];
+      for (const link of links) {
+        try {
+          const isVisible = await link.isVisible().catch(() => false);
+          if (!isVisible) continue;
+
+          const href = await link.getAttribute('href');
+          if (href && !href.includes('#') && !href.includes('javascript:')) {
+            const isIntercepted = await this.isElementIntercepted(link);
+            if (!isIntercepted) {
+              validLinks.push(link);
+            }
+          }
+        } catch (error) {
+          if (!this.isNavigationRace(error)) throw error
+        }
+      }
+
+      if (validLinks.length === 0) return;
+
+      const targetLink = validLinks[Math.floor(Math.random() * validLinks.length)];
       if (!targetLink) return;
 
       const href = await targetLink.getAttribute('href');
-      const linkText = await targetLink.textContent().catch(() => '');
+      const urlBeforeClick = page.url();
 
-      if (href && !href.includes('#') && !href.includes('javascript:')) {
-        const urlBeforeClick = page.url();
+      // 🔥 Gunakan safe click
+      const clicked = await this.safeClick(targetLink);
+      if (!clicked) return;
 
-        await targetLink.click({ delay: this.random(50, 150) });
+      await this.sleep(this.random(1000, 3000));
 
-        await this.sleep(this.random(1000, 3000));
-
-        if (page.url() !== urlBeforeClick) {
-          await this.waitForPageSettle(page);
-
-          await this.sleep(this.random(2000, 5000));
-
-          await this.simulateNaturalScroll(page);
-
-          await page.goBack({
-            waitUntil: "domcontentloaded",
-            timeout: 15000
-          }).catch(() => { });
-
-          // Wait for the original page to settle after back navigation
-          await this.waitForPageSettle(page);
-        } else {
-          // No navigation (maybe same page anchor or JS action)
-          await this.waitForPageSettle(page);
-        }
-
-        await this.sleep(this.random(500, 1000));
+      // Tunggu navigation dengan timeout
+      try {
+        await page.waitForNavigation({
+          timeout: 15000,
+          waitUntil: 'domcontentloaded'
+        }).catch(() => { });
+      } catch (e) {
+        // No navigation happened
       }
+
+      if (page.url() !== urlBeforeClick) {
+        await this.waitForPageSettle(page);
+        await this.waitForOverlaysToDisappear(page);
+        await this.sleep(this.random(2000, 5000));
+        await this.simulateNaturalScroll(page);
+
+        // Back navigation dengan safety
+        await page.goBack({
+          waitUntil: "domcontentloaded",
+          timeout: 15000
+        }).catch(() => {
+          // Jika back gagal, reload page
+          page.reload().catch(() => { });
+        });
+
+        await this.waitForPageSettle(page);
+        await this.waitForOverlaysToDisappear(page);
+      } else {
+        await this.waitForPageSettle(page);
+      }
+
+      await this.sleep(this.random(500, 1000));
     } catch (error) {
+      console.log('Internal navigation error:', error);
       try {
         await this.waitForPageSettle(page);
+        await this.waitForOverlaysToDisappear(page);
       } catch {
         // Ignore recovery errors
       }
     }
   }
+
 
   async typeLikeHuman(page: Page, selector: string, text: string): Promise<void> {
     // Wait for element to be ready
@@ -326,6 +396,239 @@ export class CrawleeHumanBehaviourSimulator {
     // Wait for any auto-save or validation
     await this.sleep(this.random(500, 1000));
   }
+
+  private async simulateScrollWithWheel(page: Page): Promise<void> {
+    try {
+      await page.evaluate(async () => {
+        const root = document.scrollingElement || document.documentElement || document.body;
+        if (!root) return;
+
+        const totalHeight = Math.max(
+          root.scrollHeight || 0,
+          document.documentElement?.scrollHeight || 0,
+          document.body?.scrollHeight || 0,
+        );
+        const viewportHeight = window.innerHeight;
+        const maxScroll = totalHeight - viewportHeight;
+
+        if (maxScroll <= 0) return;
+
+        const scrollDistance = Math.random() * maxScroll * 0.6 + maxScroll * 0.2;
+        const duration = Math.random() * 1500 + 500;
+
+        await new Promise<void>((resolve) => {
+          const startY = window.scrollY;
+          const startTime = performance.now();
+
+          const animateScroll = (now: number) => {
+            const elapsed = now - startTime;
+            const progress = Math.min(1, elapsed / duration);
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const targetY = startY + (scrollDistance - startY) * easeProgress;
+
+            window.scrollTo(0, targetY);
+
+            if (progress < 1) {
+              requestAnimationFrame(animateScroll);
+            } else {
+              resolve();
+            }
+          };
+
+          requestAnimationFrame(animateScroll);
+        });
+      });
+
+      await this.sleep(this.random(200, 500));
+    } catch (error) {
+      // Fallback
+      await this.simulateScrollWithJS(page);
+    }
+  }
+
+  private async simulateScrollWithJS(page: Page): Promise<void> {
+    try {
+      const isMobile = await page.evaluate(() => /Mobile/i.test(navigator.userAgent));
+
+      if (isMobile) {
+        await page.evaluate(async () => {
+          const root = document.scrollingElement || document.documentElement || document.body;
+          if (!root) return;
+
+          const totalHeight = Math.max(
+            root.scrollHeight || 0,
+            document.documentElement?.scrollHeight || 0,
+            document.body?.scrollHeight || 0,
+          );
+          const viewportHeight = window.innerHeight;
+          const maxScroll = totalHeight - viewportHeight;
+
+          if (maxScroll <= 0) return;
+
+          const scrollDistance = Math.random() * maxScroll * 0.6 + maxScroll * 0.2;
+
+          window.scrollTo({
+            top: scrollDistance,
+            behavior: 'smooth'
+          });
+
+          await new Promise(resolve => setTimeout(resolve, 500));
+        });
+      } else {
+        await page.evaluate(() => {
+          window.scrollBy({
+            top: window.innerHeight * 0.7,
+            behavior: 'smooth'
+          });
+        });
+      }
+
+      await this.sleep(this.random(300, 800));
+    } catch (error) {
+      // Scrolling is best-effort; pages can briefly have no body during redirects.
+    }
+  }
+
+  private async simulateMouseMovementDesktop(page: Page): Promise<void> {
+    const viewport = page.viewportSize();
+    if (!viewport) return;
+
+    const startX = this.random(0, viewport.width);
+    const startY = this.random(0, viewport.height);
+    const endX = this.random(0, viewport.width);
+    const endY = this.random(0, viewport.height);
+
+    await page.mouse.move(startX, startY, { steps: this.random(5, 15) });
+    await this.sleep(this.random(50, 150));
+
+    // Gerakan acak
+    const steps = this.random(10, 30);
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const easeT = 1 - Math.pow(1 - t, 3);
+      const x = startX + (endX - startX) * easeT;
+      const y = startY + (endY - startY) * easeT;
+
+      await page.mouse.move(x, y);
+      await this.sleep(this.random(5, 15));
+    }
+  }
+
+  private async simulateTouchMovement(page: Page): Promise<void> {
+    const viewport = page.viewportSize();
+    if (!viewport) return;
+
+    await page.evaluate(async () => {
+      const target = document.body || document.documentElement;
+      if (!target) return;
+
+      const startX = Math.random() * window.innerWidth;
+      const startY = Math.random() * window.innerHeight;
+      const endX = Math.random() * window.innerWidth;
+      const endY = Math.random() * window.innerHeight;
+
+      const dispatchPointer = (type: string, x: number, y: number) => {
+        const eventInit = {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          pointerId: 1,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX: x,
+          clientY: y,
+          screenX: x,
+          screenY: y,
+        };
+
+        try {
+          if ('PointerEvent' in window) {
+            target.dispatchEvent(new PointerEvent(type, eventInit));
+            return;
+          }
+        } catch {
+          // Fall through to MouseEvent. Some WebKit builds reject PointerEvent init fields.
+        }
+
+        const mouseType = type === 'pointerdown' ? 'mousedown'
+          : type === 'pointermove' ? 'mousemove'
+            : type === 'pointerup' ? 'mouseup'
+              : 'mousemove';
+        target.dispatchEvent(new MouseEvent(mouseType, eventInit));
+      };
+
+      dispatchPointer('pointerdown', startX, startY);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      dispatchPointer('pointermove', endX, endY);
+      window.scrollBy({
+        top: Math.max(80, Math.abs(endY - startY)),
+        behavior: 'smooth',
+      });
+      await new Promise(resolve => setTimeout(resolve, 80));
+      dispatchPointer('pointerup', endX, endY);
+    });
+
+    await this.sleep(this.random(200, 500));
+  }
+
+  private async simulateMobileBehaviour(): Promise<void> {
+    const startTime = Date.now();
+    const dwellTimeMs = this.random(this.config.minDwellSeconds, this.config.maxDwellSeconds) * 1000;
+
+    while (Date.now() - startTime < dwellTimeMs) {
+      const remaining = dwellTimeMs - (Date.now() - startTime);
+      if (remaining < 500) break;
+
+      const action = Math.random();
+
+      if (action < 0.4) {
+        await this.simulateScrollWithJS(this.page);
+      } else if (action < 0.7 && this.config.enableInternalNav) {
+        await this.simulateInternalNavigation(this.page);
+      } else {
+        await this.sleep(this.random(2000, 4000));
+      }
+
+      await this.sleep(this.random(500, 1500));
+    }
+
+    await this.waitForPageSettle(this.page);
+  }
+
+  private async simulateDesktopBehaviour(): Promise<void> {
+    const startTime = Date.now();
+    const dwellTimeMs = this.random(this.config.minDwellSeconds, this.config.maxDwellSeconds) * 1000;
+
+    while (Date.now() - startTime < dwellTimeMs) {
+      const remaining = dwellTimeMs - (Date.now() - startTime);
+      if (remaining < 500) break;
+
+      const isResponsive = await this.isPageInteractive(this.page).catch(() => false);
+      if (!isResponsive) {
+        await this.sleep(this.random(1000, 2000));
+        continue;
+      }
+
+      const action = Math.random();
+
+      if (action < 0.35) {
+        await this.simulateNaturalScroll(this.page);
+      } else if (action < 0.6 && this.config.enableInternalNav) {
+        await this.simulateInternalNavigation(this.page);
+      } else if (action < 0.7) {
+        await this.simulateMouseMovementDesktop(this.page);
+      } else {
+        await this.sleep(this.random(2000, 6000));
+      }
+
+      if (Math.random() < 0.2) {
+        await this.waitForPageSettle(this.page);
+      }
+    }
+
+    await this.waitForPageSettle(this.page);
+  }
+
   private async isPageInteractive(page: Page): Promise<boolean> {
     try {
       return await page.evaluate(() => {
@@ -363,9 +666,150 @@ export class CrawleeHumanBehaviourSimulator {
       return false
     }
   }
+
+  private async waitForOverlaysToDisappear(page: Page): Promise<void> {
+    const overlaySelectors = [
+      '.fm-loading',
+      '.loading',
+      '.loader',
+      '.spinner',
+      '.overlay',
+      '[class*="loading"]',
+      '[class*="overlay"]',
+      '.modal-backdrop',
+      '.block-ui',
+      '#loading',
+      '.page-loader'
+    ];
+
+    const maxWaitMs = 15000;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWaitMs) {
+      let hasOverlay = false;
+
+      for (const selector of overlaySelectors) {
+        const elements = await this.queryAllSafe(page, selector);
+        for (const el of elements) {
+          try {
+            const isVisible = await el.isVisible().catch(() => false);
+            if (isVisible) {
+              hasOverlay = true;
+              break;
+            }
+          } catch (error) {
+            if (!this.isNavigationRace(error)) throw error
+          }
+        }
+        if (hasOverlay) break;
+      }
+
+      if (!hasOverlay) break;
+      await this.sleep(200);
+    }
+  }
+
+  private async isElementIntercepted(element: ElementHandle): Promise<boolean> {
+    try {
+      const box = await element.boundingBox();
+      if (!box) return true;
+
+      // Dapatkan elemen di posisi tengah target
+      const centerX = box.x + box.width / 2;
+      const centerY = box.y + box.height / 2;
+
+      const topElement = await this.page.evaluateHandle(({ x, y }) => {
+        return document.elementsFromPoint(x, y)[0] || null;
+      }, { x: centerX, y: centerY });
+
+      // Bandingkan apakah elemen teratas adalah target atau child dari target
+      const isSame = await topElement.evaluate((top, targetEl) => {
+        if (!top) return false;
+        return top === targetEl || targetEl.contains(top);
+      }, element);
+
+      await topElement.dispose();
+      return !isSame;
+    } catch {
+      return true;
+    }
+  }
+
+  private async safeClick(element: ElementHandle): Promise<boolean> {
+    try {
+      // Coba normal click dulu
+      await element.click({
+        delay: this.random(30, 120),
+        timeout: 5000
+      });
+      return true;
+    } catch (error) {
+      // Jika normal click gagal karena intercept, coba force click dengan JS
+      try {
+        await element.evaluate((el: HTMLElement) => {
+          el.click();
+          // Dispatch event juga untuk framework modern
+          el.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          }));
+        });
+        return true;
+      } catch (jsError) {
+        return false;
+      }
+    }
+  }
+
   private normalizeClickSelector(input: ClickSelector): { selector: string; selectorType: string } {
     if (typeof input === "string") return { selector: input, selectorType: "css" }
     return { selector: input.selector, selectorType: input.selectorType ?? "css" }
+  }
+
+  private async handleNotifications(page: Page): Promise<void> {
+    const notificationSelectors = [
+      '[class*="toast"]',
+      '[class*="notification"]',
+      '[class*="alert"]',
+      '[role="alert"]',
+      '[aria-label="Close"]',
+      '.close',
+      '.dismiss'
+    ];
+
+    for (const selector of notificationSelectors) {
+      const elements = await this.queryAllSafe(page, selector);
+      for (const el of elements) {
+        try {
+          const isVisible = await el.isVisible().catch(() => false);
+          if (isVisible) {
+            await el.click().catch(() => { });
+            await this.sleep(200);
+          }
+        } catch (error) {
+          if (!this.isNavigationRace(error)) throw error
+        }
+      }
+    }
+  }
+
+  private async detectBrowserCapabilities(page: Page): Promise<BrowserCapabilities> {
+    return await page.evaluate(() => {
+      const userAgent = navigator.userAgent;
+      const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(userAgent);
+      const isWebKit = /WebKit/i.test(userAgent) && !/Chrome/i.test(userAgent);
+      const isFirefox = /Firefox/i.test(userAgent);
+      const isChromium = /Chrome/i.test(userAgent) || /Edg/i.test(userAgent);
+
+      return {
+        supportsWheel: !isMobile,
+        isMobile,
+        isWebKit,
+        isFirefox,
+        isChromium
+      };
+    });
   }
 
 }
